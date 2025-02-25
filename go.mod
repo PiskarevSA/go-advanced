@@ -1,3 +1,3 @@
 module github.com/PiskarevSA/go-advanced
 
-go 1.23.6
+go 1.22.12
