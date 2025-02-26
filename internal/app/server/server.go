@@ -1,12 +1,32 @@
-package handlers
+package server
 
 import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/PiskarevSA/go-advanced/internal/storage"
 )
 
-func Update(res http.ResponseWriter, req *http.Request) {
+type Server struct {
+	storage *storage.MemStorage
+}
+
+func NewServer() *Server {
+	return &Server{
+		storage: storage.NewMemStorage(),
+	}
+}
+
+// run server successfully or return error to panic in the main()
+func (s *Server) Run() error {
+	mux := http.NewServeMux()
+	mux.HandleFunc(`/update/`, s.Update)
+	err := http.ListenAndServe("localhost:8080", mux)
+	return err
+}
+
+func (s *Server) Update(res http.ResponseWriter, req *http.Request) {
 	// method be POST
 	if req.Method != http.MethodPost {
 		http.NotFound(res, req)

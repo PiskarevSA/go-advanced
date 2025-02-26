@@ -1,21 +1,12 @@
 package main
 
 import (
-	"net/http"
-
-	"github.com/PiskarevSA/go-advanced/internal/handlers"
+	"github.com/PiskarevSA/go-advanced/internal/app/server"
 )
 
-// run server successfully or return error to panic in the main()
-func run() error {
-	mux := http.NewServeMux()
-	mux.HandleFunc(`/update/`, handlers.Update)
-	err := http.ListenAndServe("localhost:8080", mux)
-	return err
-}
-
 func main() {
-	err := run()
+	server := server.NewServer()
+	err := server.Run()
 	if err != nil {
 		panic(err)
 	}
