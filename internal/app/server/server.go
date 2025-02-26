@@ -1,8 +1,8 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/PiskarevSA/go-advanced/internal/storage"
@@ -45,11 +45,29 @@ func (s *Server) Update(res http.ResponseWriter, req *http.Request) {
 
 	switch metricType {
 	case "gauge":
-		fallthrough
+		if len(metricName) == 0 {
+			http.NotFound(res, req)
+			return
+		}
+		f64, err := strconv.ParseFloat(metricValue, 64)
+		if err != nil {
+			http.Error(res, "incorrect metric value",
+				http.StatusBadRequest)
+			return
+		}
+		s.storage.SetGauge(metricName, f64)
 	case "counter":
-		fmt.Println("metricType", metricType)
-		fmt.Println("metricName", metricName)
-		fmt.Println("metricValue", metricValue)
+		if len(metricName) == 0 {
+			http.NotFound(res, req)
+			return
+		}
+		i64, err := strconv.ParseInt(metricValue, 10, 64)
+		if err != nil {
+			http.Error(res, "incorrect metric value",
+				http.StatusBadRequest)
+			return
+		}
+		s.storage.IncreaseCounter(metricName, i64)
 	case "":
 		http.Error(res, "empty metric type",
 			http.StatusBadRequest)
