@@ -1,14 +1,10 @@
 package agent
 
 import (
-	"crypto/rand"
 	"fmt"
-	"math"
-	"math/big"
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,95 +17,6 @@ const (
 	updateInterval = 100 * time.Millisecond
 	serverAddress  = "http://localhost:8080"
 )
-
-type (
-	gauge   float64
-	counter int64
-)
-
-type metrics struct {
-	mutex sync.Mutex
-	// runtime metrics
-	Alloc         gauge
-	BuckHashSys   gauge
-	Frees         gauge
-	GCCPUFraction gauge
-	GCSys         gauge
-	HeapAlloc     gauge
-	HeapIdle      gauge
-	HeapInuse     gauge
-	HeapObjects   gauge
-	HeapReleased  gauge
-	HeapSys       gauge
-	LastGC        gauge
-	Lookups       gauge
-	MCacheInuse   gauge
-	MCacheSys     gauge
-	MSpanInuse    gauge
-	MSpanSys      gauge
-	Mallocs       gauge
-	NextGC        gauge
-	NumForcedGC   gauge
-	NumGC         gauge
-	OtherSys      gauge
-	PauseTotalNs  gauge
-	StackInuse    gauge
-	StackSys      gauge
-	Sys           gauge
-	TotalAlloc    gauge
-	// custom metrics
-	RandomValue gauge
-	PollCount   counter
-}
-
-func newMetrics() *metrics {
-	return &metrics{}
-}
-
-func (m *metrics) Poll() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	// runtime metrics
-	ms := runtime.MemStats{}
-	runtime.ReadMemStats(&ms)
-	m.Alloc = gauge(ms.Alloc)
-	m.BuckHashSys = gauge(ms.BuckHashSys)
-	m.Frees = gauge(ms.Frees)
-	m.GCCPUFraction = gauge(ms.GCCPUFraction)
-	m.GCSys = gauge(ms.GCSys)
-	m.HeapAlloc = gauge(ms.HeapAlloc)
-	m.HeapIdle = gauge(ms.HeapIdle)
-	m.HeapInuse = gauge(ms.HeapInuse)
-	m.HeapObjects = gauge(ms.HeapObjects)
-	m.HeapReleased = gauge(ms.HeapReleased)
-	m.HeapSys = gauge(ms.HeapSys)
-	m.LastGC = gauge(ms.LastGC)
-	m.Lookups = gauge(ms.Lookups)
-	m.MCacheInuse = gauge(ms.MCacheInuse)
-	m.MCacheSys = gauge(ms.MCacheSys)
-	m.MSpanInuse = gauge(ms.MSpanInuse)
-	m.MSpanSys = gauge(ms.MSpanSys)
-	m.Mallocs = gauge(ms.Mallocs)
-	m.NextGC = gauge(ms.NextGC)
-	m.NumForcedGC = gauge(ms.NumForcedGC)
-	m.NumGC = gauge(ms.NumGC)
-	m.OtherSys = gauge(ms.OtherSys)
-	m.PauseTotalNs = gauge(ms.PauseTotalNs)
-	m.StackInuse = gauge(ms.StackInuse)
-	m.StackSys = gauge(ms.StackSys)
-	m.Sys = gauge(ms.Sys)
-	m.TotalAlloc = gauge(ms.TotalAlloc)
-	// custom metrics
-	randomInt64, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
-	m.RandomValue = gauge(randomInt64.Int64())
-	m.PollCount += 1
-}
-
-func (m *metrics) Read(reader func(*metrics)) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	reader(m)
-}
 
 type Agent struct {
 	metrics   *metrics
@@ -266,22 +173,16 @@ func (a *Agent) Report() {
 }
 
 func (a *Agent) ReportToUrl(url string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodPost, url, nil)
+	req, err := http.NewRequest(http.MethodPost, url, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
 	res, err := http.DefaultClient.Do(req)
+	if res != nil {
+		defer res.Body.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
 	return res, err
-}
-
-func IsClosed[T any](ch <-chan T) bool {
-	select {
-	case <-ch:
-		return true
-	default:
-	}
-	return false
 }
