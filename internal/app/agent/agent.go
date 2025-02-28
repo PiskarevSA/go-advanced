@@ -5,17 +5,21 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 const (
-	pollInterval = 2 * time.Second
-	sendInterval = 10 * time.Second
+	pollInterval   = 2 * time.Second
+	reportInterval = 10 * time.Second
+	updateInterval = 100 * time.Millisecond
+	serverAddress  = "http://localhost:8080"
 )
 
 type (
@@ -112,6 +116,7 @@ type Agent struct {
 	gauge     map[string]gauge
 	counter   map[string]counter
 	readyRead atomic.Bool
+	stopped   atomic.Bool
 }
 
 func NewAgent() *Agent {
@@ -160,46 +165,116 @@ func (a *Agent) metricsReader() func(*metrics) {
 
 // run agent successfully or return error to panic in the main()
 func (a *Agent) Run() error {
+	// set a.stopped on program interrupt requested
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
 	wg := sync.WaitGroup{}
-	// poll metrics periodically
 	wg.Add(1)
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt)
-
 	go func() {
-		for {
-			if IsClosed(stop) {
-				break
-			}
-			a.metrics.Poll()
-			a.readyRead.Store(true)
-			time.Sleep(pollInterval)
+		fmt.Println("[signal] waiting for interrupt signal from OS")
+		defer wg.Done()
+		for range c {
+			a.stopped.Store(true)
+			fmt.Println("[signal] Interrupt signal from OS received")
+			break
 		}
-		wg.Done()
 	}()
 
-	// send metrics to server periodically
+	// poll metrics periodically
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
+		fmt.Println("[poller] start ")
+		for {
+			a.metrics.Poll()
+			fmt.Println("[poller] polled ")
+			a.readyRead.Store(true)
+			// sleep pollInterval or interrupt
+			for t := updateInterval; t < pollInterval; t += updateInterval {
+				if a.stopped.Load() {
+					fmt.Println("[poller] shutdown")
+					return
+				}
+				time.Sleep(updateInterval)
+			}
+		}
+	}()
+
+	// report metrics to server periodically
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fmt.Println("[reporter] start")
 		// wait for first poll
 		for !a.readyRead.Load() {
-			fmt.Println("waiting for first poll")
+			fmt.Println("[reporter] waiting for first poll")
 			time.Sleep(time.Microsecond)
 		}
 		for {
-			if IsClosed(stop) {
-				break
-			}
 			a.metrics.Read(a.metricsReader())
-			// TODO send metrics to server
-			fmt.Println("gauge:", a.gauge)
-			fmt.Println("counter:", a.counter)
-			time.Sleep(sendInterval)
+			// report
+			a.Report()
+			fmt.Println("[reporter] reported")
+			// sleep reportInterval or interrupt
+			for t := updateInterval; t < reportInterval; t += updateInterval {
+				if a.stopped.Load() {
+					fmt.Println("[reporter] shutdown")
+					return
+				}
+				time.Sleep(updateInterval)
+			}
 		}
-		wg.Done()
 	}()
 	wg.Wait()
 	return nil
+}
+
+func (a *Agent) Report() {
+	urls := make([]string, 0, len(a.gauge)+len(a.counter))
+	for key, gauge := range a.gauge {
+		urls = append(urls, strings.Join(
+			[]string{serverAddress, "gauge", key, fmt.Sprint(gauge)}, "/"))
+	}
+	for key, counter := range a.counter {
+		urls = append(urls, strings.Join(
+			[]string{serverAddress, "counter", key, fmt.Sprint(counter)}, "/"))
+	}
+	var (
+		firstError error
+		errorCount int
+	)
+	for _, url := range urls {
+		_, err := a.ReportToUrl(url)
+		if err != nil {
+			if firstError == nil {
+				firstError = err
+			}
+			errorCount += 1
+		}
+		if a.stopped.Load() {
+			fmt.Println("- interrupt reporting")
+			return
+		}
+	}
+	if errorCount > 0 {
+		message := fmt.Sprintf("[reporter] %v", firstError)
+		if errorCount > 1 {
+			message += fmt.Sprintf(" (and %v more errors)", errorCount-1)
+		}
+		fmt.Println(message)
+	}
+}
+
+func (a *Agent) ReportToUrl(url string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	return res, err
 }
 
 func IsClosed[T any](ch <-chan T) bool {
