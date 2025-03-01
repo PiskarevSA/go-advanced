@@ -140,11 +140,11 @@ func (a *Agent) Report() {
 	urls := make([]string, 0, len(a.gauge)+len(a.counter))
 	for key, gauge := range a.gauge {
 		urls = append(urls, strings.Join(
-			[]string{serverAddress, "gauge", key, fmt.Sprint(gauge)}, "/"))
+			[]string{serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
 	}
 	for key, counter := range a.counter {
 		urls = append(urls, strings.Join(
-			[]string{serverAddress, "counter", key, fmt.Sprint(counter)}, "/"))
+			[]string{serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
 	}
 	var (
 		firstError error
@@ -176,12 +176,11 @@ func (a *Agent) Report() {
 }
 
 func (a *Agent) ReportToURL(url string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodPost, url, http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := http.Post(url, "text/plain", http.NoBody)
 	if res != nil {
+		if res.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("POST %v returns %v", url, res.Status)
+		}
 		defer res.Body.Close()
 	}
 	if err != nil {
