@@ -152,7 +152,9 @@ func (a *Agent) Report() {
 	)
 	for _, url := range urls {
 		res, err := a.ReportToURL(url)
-		res.Body.Close()
+		if res != nil {
+			res.Body.Close()
+		}
 		if err != nil {
 			if firstError == nil {
 				firstError = err
