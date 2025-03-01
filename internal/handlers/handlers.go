@@ -63,5 +63,7 @@ func Update(repo repositories) func(res http.ResponseWriter, req *http.Request) 
 				http.StatusBadRequest)
 			return
 		}
+		// success
+		res.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	}
 }
