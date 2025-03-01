@@ -151,7 +151,8 @@ func (a *Agent) Report() {
 		errorCount int
 	)
 	for _, url := range urls {
-		_, err := a.ReportToUrl(url)
+		res, err := a.ReportToURL(url)
+		res.Body.Close()
 		if err != nil {
 			if firstError == nil {
 				firstError = err
@@ -172,7 +173,7 @@ func (a *Agent) Report() {
 	}
 }
 
-func (a *Agent) ReportToUrl(url string) (*http.Response, error) {
+func (a *Agent) ReportToURL(url string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodPost, url, http.NoBody)
 	if err != nil {
 		return nil, err
