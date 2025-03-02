@@ -151,11 +151,11 @@ func (a *Agent) Report() {
 	urls := make([]string, 0, len(a.gauge)+len(a.counter))
 	for key, gauge := range a.gauge {
 		urls = append(urls, strings.Join(
-			[]string{*serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
+			[]string{"http://" + *serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
 	}
 	for key, counter := range a.counter {
 		urls = append(urls, strings.Join(
-			[]string{*serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
+			[]string{"http://" + *serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
 	}
 	var (
 		firstError error
