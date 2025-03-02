@@ -7,7 +7,7 @@ import (
 
 func MetricsRouter(repo handlers.Repositories) chi.Router {
 	r := chi.NewRouter()
-	r.Post(`/update/*`, handlers.Update(repo))
+	r.Post(`/update/{type}/{name}/{value}`, handlers.Update(repo))
 	r.Get(`/value/{type}/{name}`, handlers.Get(repo))
 	return r
 }

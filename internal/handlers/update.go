@@ -3,7 +3,8 @@ package handlers
 import (
 	"net/http"
 	"strconv"
-	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // POST "text/plain" /update/{type}/{name}/{value}
@@ -16,9 +17,9 @@ func Update(repo Repositories) func(res http.ResponseWriter, req *http.Request) 
 			return
 		}
 		// incorrect metric type should return http.StatusBadRequest
-		tail := strings.TrimPrefix(req.URL.Path, "/update/")
-		metricType, tail, _ := strings.Cut(tail, "/")
-		metricName, metricValue, _ := strings.Cut(tail, "/")
+		metricType := chi.URLParam(req, "type")
+		metricName := chi.URLParam(req, "name")
+		metricValue := chi.URLParam(req, "value")
 
 		switch metricType {
 		case "gauge":

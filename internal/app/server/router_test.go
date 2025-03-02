@@ -183,8 +183,8 @@ func TestMetricsRouter(t *testing.T) {
 				mockRepo:    nil,
 			},
 			want: want{
-				code:        http.StatusBadRequest,
-				response:    "empty metric type\n",
+				code:        http.StatusNotFound,
+				response:    "404 page not found\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -193,7 +193,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				contentType: "text/plain",
-				url:         "/update/foo",
+				url:         "/update/foo/123/456",
 				mockRepo:    nil,
 			},
 			want: want{
@@ -217,11 +217,25 @@ func TestMetricsRouter(t *testing.T) {
 			},
 		},
 		{
-			name: "update: incorrect metric value",
+			name: "update: empty metric value",
 			given: given{
 				method:      http.MethodPost,
 				contentType: "text/plain",
 				url:         "/update/gauge/foo",
+				mockRepo:    nil,
+			},
+			want: want{
+				code:        http.StatusNotFound,
+				response:    "404 page not found\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update: incorrect metric value",
+			given: given{
+				method:      http.MethodPost,
+				contentType: "text/plain",
+				url:         "/update/gauge/foo/qwe",
 				mockRepo:    nil,
 			},
 			want: want{
