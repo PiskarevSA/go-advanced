@@ -88,12 +88,11 @@ func (m *mockRepo) Dump() (gauge map[string]float64, counter map[string]int64) {
 	return
 }
 
-func testRequest(t *testing.T, ts *httptest.Server, method, contentType,
-	path string,
-) (respCode int, respContentType, respBody string) {
+func testRequest(t *testing.T, ts *httptest.Server, method, path string) (
+	respCode int, respContentType, respBody string,
+) {
 	req, err := http.NewRequest(method, ts.URL+path, http.NoBody)
 	require.NoError(t, err)
-	req.Header.Add("Content-Type", contentType)
 
 	resp, err := ts.Client().Do(req)
 	require.NoError(t, err)
@@ -107,10 +106,9 @@ func testRequest(t *testing.T, ts *httptest.Server, method, contentType,
 
 func TestMetricsRouter(t *testing.T) {
 	type given struct {
-		method      string
-		contentType string
-		url         string
-		mockRepo    *mockRepo
+		method   string
+		url      string
+		mockRepo *mockRepo
 	}
 	type want struct {
 		code        int
@@ -125,10 +123,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: gauge positive",
 			given: given{
-				method:      http.MethodPost,
-				contentType: "text/plain",
-				url:         "/update/gauge/foo/1.23",
-				mockRepo:    expectSetGauge(t, "foo", 1.23),
+				method:   http.MethodPost,
+				url:      "/update/gauge/foo/1.23",
+				mockRepo: expectSetGauge(t, "foo", 1.23),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -139,10 +136,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: counter positive",
 			given: given{
-				method:      http.MethodPost,
-				contentType: "text/plain",
-				url:         "/update/counter/bar/456",
-				mockRepo:    expectSetCounter(t, "bar", 456),
+				method:   http.MethodPost,
+				url:      "/update/counter/bar/456",
+				mockRepo: expectSetCounter(t, "bar", 456),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -153,10 +149,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: invalid method",
 			given: given{
-				method:      http.MethodPatch,
-				contentType: "text/plain",
-				url:         "/update/gauge/foo/1.23",
-				mockRepo:    nil,
+				method:   http.MethodPatch,
+				url:      "/update/gauge/foo/1.23",
+				mockRepo: nil,
 			},
 			want: want{
 				code:        http.StatusMethodNotAllowed,
@@ -165,26 +160,11 @@ func TestMetricsRouter(t *testing.T) {
 			},
 		},
 		{
-			name: "update: invalid content type",
-			given: given{
-				method:      http.MethodPost,
-				contentType: "application/json",
-				url:         "/update/gauge/foo/1.23",
-				mockRepo:    nil,
-			},
-			want: want{
-				code:        http.StatusBadRequest,
-				response:    "supported Content-Type: text/plain\n",
-				contentType: "text/plain; charset=utf-8",
-			},
-		},
-		{
 			name: "update: empty metric type",
 			given: given{
-				method:      http.MethodPost,
-				contentType: "text/plain",
-				url:         "/update/",
-				mockRepo:    nil,
+				method:   http.MethodPost,
+				url:      "/update/",
+				mockRepo: nil,
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -195,10 +175,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: unexpected metric type",
 			given: given{
-				method:      http.MethodPost,
-				contentType: "text/plain",
-				url:         "/update/foo/123/456",
-				mockRepo:    nil,
+				method:   http.MethodPost,
+				url:      "/update/foo/123/456",
+				mockRepo: nil,
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -209,10 +188,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: empty metric name",
 			given: given{
-				method:      http.MethodPost,
-				contentType: "text/plain",
-				url:         "/update/gauge",
-				mockRepo:    nil,
+				method:   http.MethodPost,
+				url:      "/update/gauge",
+				mockRepo: nil,
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -223,10 +201,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: empty metric value",
 			given: given{
-				method:      http.MethodPost,
-				contentType: "text/plain",
-				url:         "/update/gauge/foo",
-				mockRepo:    nil,
+				method:   http.MethodPost,
+				url:      "/update/gauge/foo",
+				mockRepo: nil,
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -237,10 +214,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: incorrect metric value",
 			given: given{
-				method:      http.MethodPost,
-				contentType: "text/plain",
-				url:         "/update/gauge/foo/qwe",
-				mockRepo:    nil,
+				method:   http.MethodPost,
+				url:      "/update/gauge/foo/qwe",
+				mockRepo: nil,
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -251,10 +227,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: incorrect metric value",
 			given: given{
-				method:      http.MethodPost,
-				contentType: "text/plain",
-				url:         "/update/gauge/foo/value",
-				mockRepo:    nil,
+				method:   http.MethodPost,
+				url:      "/update/gauge/foo/value",
+				mockRepo: nil,
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -265,10 +240,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "value: gauge positive",
 			given: given{
-				method:      http.MethodGet,
-				contentType: "",
-				url:         "/value/gauge/foo",
-				mockRepo:    expectGauge(t, "foo", 1.23, true),
+				method:   http.MethodGet,
+				url:      "/value/gauge/foo",
+				mockRepo: expectGauge(t, "foo", 1.23, true),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -279,10 +253,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "value: counter positive",
 			given: given{
-				method:      http.MethodGet,
-				contentType: "",
-				url:         "/value/counter/bar",
-				mockRepo:    expectCounter(t, "bar", 456, true),
+				method:   http.MethodGet,
+				url:      "/value/counter/bar",
+				mockRepo: expectCounter(t, "bar", 456, true),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -293,10 +266,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "value: invalid method",
 			given: given{
-				method:      http.MethodPatch,
-				contentType: "text/plain",
-				url:         "/value/gauge/foo",
-				mockRepo:    nil,
+				method:   http.MethodPatch,
+				url:      "/value/gauge/foo",
+				mockRepo: nil,
 			},
 			want: want{
 				code:        http.StatusMethodNotAllowed,
@@ -307,10 +279,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "value: unknown metric type",
 			given: given{
-				method:      http.MethodGet,
-				contentType: "text/plain",
-				url:         "/value/foo",
-				mockRepo:    nil,
+				method:   http.MethodGet,
+				url:      "/value/foo",
+				mockRepo: nil,
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -321,10 +292,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "value: unknown metric name",
 			given: given{
-				method:      http.MethodGet,
-				contentType: "text/plain",
-				url:         "/value/gauge/foo",
-				mockRepo:    expectGauge(t, "foo", 0.0, false),
+				method:   http.MethodGet,
+				url:      "/value/gauge/foo",
+				mockRepo: expectGauge(t, "foo", 0.0, false),
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -339,8 +309,7 @@ func TestMetricsRouter(t *testing.T) {
 			defer ts.Close()
 
 			respCode, respContentType, respBody := testRequest(
-				t, ts, tt.given.method, tt.given.contentType,
-				tt.given.url)
+				t, ts, tt.given.method, tt.given.url)
 			// проверяем параметры ответа
 			assert.Equal(t, tt.want.code, respCode)
 			assert.Equal(t, tt.want.contentType, respContentType)

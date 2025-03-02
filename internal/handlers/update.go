@@ -10,12 +10,6 @@ import (
 // POST "text/plain" /update/{type}/{name}/{value}
 func Update(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		// header should contains "Content-Type: text/plain"
-		if req.Header.Get("Content-Type") != "text/plain" {
-			http.Error(res, "supported Content-Type: text/plain",
-				http.StatusBadRequest)
-			return
-		}
 		// incorrect metric type should return http.StatusBadRequest
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
