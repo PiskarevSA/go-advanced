@@ -3,15 +3,15 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // GET /value/{type}/{name}
 func Get(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		// incorrect or empty metric type should return http.NotFound
-		tail := strings.TrimPrefix(req.URL.Path, "/value/")
-		metricType, metricName, _ := strings.Cut(tail, "/")
+		metricType := chi.URLParam(req, "type")
+		metricName := chi.URLParam(req, "name")
 
 		var str string
 		switch metricType {
