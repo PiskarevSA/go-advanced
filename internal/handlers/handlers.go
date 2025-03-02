@@ -6,18 +6,13 @@ import (
 	"strings"
 )
 
-type repositories interface {
+type Repositories interface {
 	SetGauge(key string, value float64)
 	IncreaseCounter(key string, addition int64)
 }
 
-func Update(repo repositories) func(res http.ResponseWriter, req *http.Request) {
+func Update(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		// method be POST
-		if req.Method != http.MethodPost {
-			http.NotFound(res, req)
-			return
-		}
 		// header should contains "Content-Type: text/plain"
 		if req.Header.Get("Content-Type") != "text/plain" {
 			http.Error(res, "supported Content-Type: text/plain",

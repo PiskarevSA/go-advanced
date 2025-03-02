@@ -1,4 +1,4 @@
-package handlers
+package server
 
 import (
 	"io"
@@ -44,7 +44,24 @@ func (m *mockRepo) IncreaseCounter(key string, addition int64) {
 	assert.Equal(m.t, m.counterAddition, addition)
 }
 
-func TestUpdate(t *testing.T) {
+func testRequest(t *testing.T, ts *httptest.Server, method, contentType,
+	path string,
+) (respCode int, respContentType, respBody string) {
+	req, err := http.NewRequest(method, ts.URL+path, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Add("Content-Type", contentType)
+
+	resp, err := ts.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBodyBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	return resp.StatusCode, resp.Header.Get("Content-Type"), string(respBodyBytes)
+}
+
+func TestMetricsRouter(t *testing.T) {
 	type given struct {
 		method      string
 		contentType string
@@ -66,7 +83,7 @@ func TestUpdate(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				contentType: "text/plain",
-				url:         "http://localhost:8080/update/gauge/foo/1.23",
+				url:         "/update/gauge/foo/1.23",
 				mockRepo:    expectSetGauge(t, "foo", 1.23),
 			},
 			want: want{
@@ -80,7 +97,7 @@ func TestUpdate(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				contentType: "text/plain",
-				url:         "http://localhost:8080/update/counter/bar/456",
+				url:         "/update/counter/bar/456",
 				mockRepo:    expectIncreaseCounter(t, "bar", 456),
 			},
 			want: want{
@@ -94,13 +111,13 @@ func TestUpdate(t *testing.T) {
 			given: given{
 				method:      http.MethodPatch,
 				contentType: "text/plain",
-				url:         "http://localhost:8080/update/gauge/foo/1.23",
+				url:         "/update/gauge/foo/1.23",
 				mockRepo:    nil,
 			},
 			want: want{
-				code:        http.StatusNotFound,
-				response:    "404 page not found\n",
-				contentType: "text/plain; charset=utf-8",
+				code:        http.StatusMethodNotAllowed,
+				response:    "",
+				contentType: "",
 			},
 		},
 		{
@@ -108,7 +125,7 @@ func TestUpdate(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				contentType: "application/json",
-				url:         "http://localhost:8080/update/gauge/foo/1.23",
+				url:         "/update/gauge/foo/1.23",
 				mockRepo:    nil,
 			},
 			want: want{
@@ -122,7 +139,7 @@ func TestUpdate(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				contentType: "text/plain",
-				url:         "http://localhost:8080/update/",
+				url:         "/update/",
 				mockRepo:    nil,
 			},
 			want: want{
@@ -136,7 +153,7 @@ func TestUpdate(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				contentType: "text/plain",
-				url:         "http://localhost:8080/update/foo",
+				url:         "/update/foo",
 				mockRepo:    nil,
 			},
 			want: want{
@@ -150,7 +167,7 @@ func TestUpdate(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				contentType: "text/plain",
-				url:         "http://localhost:8080/update/gauge",
+				url:         "/update/gauge",
 				mockRepo:    nil,
 			},
 			want: want{
@@ -164,7 +181,7 @@ func TestUpdate(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				contentType: "text/plain",
-				url:         "http://localhost:8080/update/gauge/foo",
+				url:         "/update/gauge/foo",
 				mockRepo:    nil,
 			},
 			want: want{
@@ -178,7 +195,7 @@ func TestUpdate(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				contentType: "text/plain",
-				url:         "http://localhost:8080/update/gauge/foo/value",
+				url:         "/update/gauge/foo/value",
 				mockRepo:    nil,
 			},
 			want: want{
@@ -190,22 +207,16 @@ func TestUpdate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(tt.given.method, tt.given.url, http.NoBody)
-			request.Header.Set("Content-Type", tt.given.contentType)
-			// создаём новый Recorder
-			w := httptest.NewRecorder()
-			Update(tt.given.mockRepo)(w, request)
+			ts := httptest.NewServer(MetricsRouter(tt.given.mockRepo))
+			defer ts.Close()
 
-			res := w.Result()
-			// проверяем код ответа
-			assert.Equal(t, tt.want.code, res.StatusCode)
-			// получаем и проверяем тело запроса
-			defer res.Body.Close()
-			resBody, err := io.ReadAll(res.Body)
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.want.response, string(resBody))
-			assert.Equal(t, tt.want.contentType, res.Header.Get("Content-Type"))
+			respCode, respContentType, respBody := testRequest(
+				t, ts, tt.given.method, tt.given.contentType,
+				tt.given.url)
+			// проверяем параметры ответа
+			assert.Equal(t, tt.want.code, respCode)
+			assert.Equal(t, tt.want.contentType, respContentType)
+			assert.Equal(t, tt.want.response, respBody)
 		})
 	}
 }
