@@ -6,11 +6,7 @@ import (
 	"strings"
 )
 
-type Repositories interface {
-	SetGauge(key string, value float64)
-	IncreaseCounter(key string, addition int64)
-}
-
+// POST "text/plain" /update/{type}/{name}/{value}
 func Update(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		// header should contains "Content-Type: text/plain"
