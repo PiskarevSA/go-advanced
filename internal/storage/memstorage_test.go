@@ -2,6 +2,8 @@ package storage
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMemStorage_SetGauge(t *testing.T) {
@@ -54,6 +56,7 @@ func TestMemStorage_SetGauge(t *testing.T) {
 				counter: map[string]int64{},
 			}
 			m.SetGauge(tt.args.key, tt.args.value)
+			assert.Equal(t, m.gauge, tt.want)
 		})
 	}
 }
@@ -97,7 +100,7 @@ func TestMemStorage_SetCounter(t *testing.T) {
 			},
 			want: map[string]int64{
 				"foo": 1,
-				"bar": 3,
+				"bar": 5,
 			},
 		},
 	}
@@ -108,6 +111,7 @@ func TestMemStorage_SetCounter(t *testing.T) {
 				counter: tt.counter,
 			}
 			m.SetCounter(tt.args.key, tt.args.value)
+			assert.Equal(t, m.counter, tt.want)
 		})
 	}
 }

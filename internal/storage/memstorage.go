@@ -35,7 +35,9 @@ func (m *MemStorage) SetCounter(key string, value int64) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	m.counter[key] = value
+	// TBD m.counter[key] = value
+	// see https://app.pachca.com/chats/19865306?message=445288954
+	m.counter[key] += value
 }
 
 func (m *MemStorage) Counter(key string) (value int64, exist bool) {
