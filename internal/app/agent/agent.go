@@ -94,7 +94,7 @@ func (a *Agent) Run() error {
 		fmt.Println("[poller] start ")
 		for {
 			a.metrics.Poll()
-			fmt.Println("[poller] polled ")
+			fmt.Println("[poller] polled", a.metrics.PollCount)
 			a.readyRead.Store(true)
 			// sleep pollInterval or interrupt
 			for t := updateInterval; t < pollInterval; t += updateInterval {
@@ -121,7 +121,7 @@ func (a *Agent) Run() error {
 			a.metrics.Read(a.metricsReader())
 			// report
 			a.Report()
-			fmt.Println("[reporter] reported")
+			fmt.Println("[reporter] reported", a.metrics.PollCount)
 			// sleep reportInterval or interrupt
 			for t := updateInterval; t < reportInterval; t += updateInterval {
 				if a.stopped.Load() {

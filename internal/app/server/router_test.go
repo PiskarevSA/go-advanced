@@ -11,15 +11,14 @@ import (
 )
 
 type mockRepo struct {
-	t               *testing.T
-	method          string
-	gaugeKey        string
-	gaugeValue      float64
-	gaugeExists     bool
-	counterKey      string
-	counterAddition int64
-	counterValue    int64
-	counterExists   bool
+	t             *testing.T
+	method        string
+	gaugeKey      string
+	gaugeValue    float64
+	gaugeExists   bool
+	counterKey    string
+	counterValue  int64
+	counterExists bool
 }
 
 func expectSetGauge(t *testing.T, key string, value float64) *mockRepo {
@@ -41,12 +40,12 @@ func expectGauge(t *testing.T, key string, value float64, exists bool) *mockRepo
 	}
 }
 
-func expectIncreaseCounter(t *testing.T, key string, addition int64) *mockRepo {
+func expectSetCounter(t *testing.T, key string, value int64) *mockRepo {
 	return &mockRepo{
-		t:               t,
-		method:          "IncreaseCounter",
-		counterKey:      key,
-		counterAddition: addition,
+		t:            t,
+		method:       "SetCounter",
+		counterKey:   key,
+		counterValue: value,
 	}
 }
 
@@ -72,16 +71,21 @@ func (m *mockRepo) Gauge(key string) (value float64, exist bool) {
 	return m.gaugeValue, m.gaugeExists
 }
 
-func (m *mockRepo) IncreaseCounter(key string, addition int64) {
-	assert.Equal(m.t, m.method, "IncreaseCounter")
+func (m *mockRepo) SetCounter(key string, value int64) {
+	assert.Equal(m.t, m.method, "SetCounter")
 	assert.Equal(m.t, m.counterKey, key)
-	assert.Equal(m.t, m.counterAddition, addition)
+	assert.Equal(m.t, m.counterValue, value)
 }
 
 func (m *mockRepo) Counter(key string) (value int64, exist bool) {
 	assert.Equal(m.t, m.method, "Counter")
 	assert.Equal(m.t, m.counterKey, key)
 	return m.counterValue, m.counterExists
+}
+
+func (m *mockRepo) Dump() (gauge map[string]float64, counter map[string]int64) {
+	require.Fail(m.t, "unexpected call")
+	return
 }
 
 func testRequest(t *testing.T, ts *httptest.Server, method, contentType,
@@ -138,7 +142,7 @@ func TestMetricsRouter(t *testing.T) {
 				method:      http.MethodPost,
 				contentType: "text/plain",
 				url:         "/update/counter/bar/456",
-				mockRepo:    expectIncreaseCounter(t, "bar", 456),
+				mockRepo:    expectSetCounter(t, "bar", 456),
 			},
 			want: want{
 				code:        http.StatusOK,

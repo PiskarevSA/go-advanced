@@ -58,10 +58,10 @@ func TestMemStorage_SetGauge(t *testing.T) {
 	}
 }
 
-func TestMemStorage_IncreaseCounter(t *testing.T) {
+func TestMemStorage_SetCounter(t *testing.T) {
 	type args struct {
-		key      string
-		addition int64
+		key   string
+		value int64
 	}
 	tests := []struct {
 		name    string
@@ -76,8 +76,8 @@ func TestMemStorage_IncreaseCounter(t *testing.T) {
 				"bar": 2,
 			},
 			args: args{
-				key:      "baz",
-				addition: 3,
+				key:   "baz",
+				value: 3,
 			},
 			want: map[string]int64{
 				"foo": 1,
@@ -86,18 +86,18 @@ func TestMemStorage_IncreaseCounter(t *testing.T) {
 			},
 		},
 		{
-			name: "increase counter",
+			name: "replace counter",
 			counter: map[string]int64{
 				"foo": 1,
 				"bar": 2,
 			},
 			args: args{
-				key:      "bar",
-				addition: 3,
+				key:   "bar",
+				value: 3,
 			},
 			want: map[string]int64{
 				"foo": 1,
-				"bar": 5,
+				"bar": 3,
 			},
 		},
 	}
@@ -107,7 +107,7 @@ func TestMemStorage_IncreaseCounter(t *testing.T) {
 				gauge:   map[string]float64{},
 				counter: tt.counter,
 			}
-			m.IncreaseCounter(tt.args.key, tt.args.addition)
+			m.SetCounter(tt.args.key, tt.args.value)
 		})
 	}
 }

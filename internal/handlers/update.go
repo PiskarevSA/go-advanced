@@ -45,7 +45,7 @@ func Update(repo Repositories) func(res http.ResponseWriter, req *http.Request) 
 					http.StatusBadRequest)
 				return
 			}
-			repo.IncreaseCounter(metricName, i64)
+			repo.SetCounter(metricName, i64)
 		case "":
 			http.Error(res, "empty metric type",
 				http.StatusBadRequest)
