@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,11 +12,12 @@ import (
 	"time"
 )
 
-const (
-	pollInterval   = 2 * time.Second
-	reportInterval = 10 * time.Second
-	updateInterval = 100 * time.Millisecond
-	serverAddress  = "http://localhost:8080"
+const updateInterval = 100 * time.Millisecond
+
+var (
+	pollIntervalSec   = flag.Int("p", 2, "interval between polling metrics, seconds")
+	reportIntervalSec = flag.Int("r", 10, "interval between sending metrics to server, seconds")
+	serverAddress     = flag.String("a", "localhost:8080", "server address")
 )
 
 type Agent struct {
@@ -72,6 +74,13 @@ func (a *Agent) metricsReader() func(*metrics) {
 
 // run agent successfully or return error to panic in the main()
 func (a *Agent) Run() error {
+	flag.Parse()
+
+	if flag.NArg() > 0 {
+		flag.Usage()
+		return nil
+	}
+
 	// set a.stopped on program interrupt requested
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -92,6 +101,7 @@ func (a *Agent) Run() error {
 	go func() {
 		defer wg.Done()
 		fmt.Println("[poller] start ")
+		pollInterval := time.Duration(*pollIntervalSec) * time.Second
 		for {
 			a.metrics.Poll()
 			fmt.Println("[poller] polled", a.metrics.PollCount)
@@ -117,6 +127,7 @@ func (a *Agent) Run() error {
 			fmt.Println("[reporter] waiting for first poll")
 			time.Sleep(time.Microsecond)
 		}
+		reportInterval := time.Duration(*reportIntervalSec) * time.Second
 		for {
 			a.metrics.Read(a.metricsReader())
 			// report
@@ -140,11 +151,11 @@ func (a *Agent) Report() {
 	urls := make([]string, 0, len(a.gauge)+len(a.counter))
 	for key, gauge := range a.gauge {
 		urls = append(urls, strings.Join(
-			[]string{serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
+			[]string{*serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
 	}
 	for key, counter := range a.counter {
 		urls = append(urls, strings.Join(
-			[]string{serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
+			[]string{*serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
 	}
 	var (
 		firstError error

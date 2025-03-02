@@ -7,6 +7,8 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/storage"
 )
 
+var serverAddress = flag.String("a", "localhost:8080", "server address")
+
 type Server struct {
 	storage *storage.MemStorage
 }
@@ -19,7 +21,6 @@ func NewServer() *Server {
 
 // run server successfully or return error to panic in the main()
 func (s *Server) Run() error {
-	serverAddress := flag.String("a", "localhost:8080", "server address")
 	flag.Parse()
 	if flag.NArg() > 0 {
 		flag.Usage()
