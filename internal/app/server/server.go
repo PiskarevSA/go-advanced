@@ -29,7 +29,7 @@ func (s *Server) Run() error {
 	var config Config
 	// flags takes less priority according to task description
 	flag.StringVar(&config.ServerAddress, "a", "localhost:8080",
-		"server address, env: ADDRESS")
+		"server address; env: ADDRESS")
 	flag.Parse()
 	if flag.NArg() > 0 {
 		flag.Usage()

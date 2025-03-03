@@ -10,15 +10,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/caarlos0/env/v6"
 )
 
 const updateInterval = 100 * time.Millisecond
 
-var (
-	pollIntervalSec   = flag.Int("p", 2, "interval between polling metrics, seconds")
-	reportIntervalSec = flag.Int("r", 10, "interval between sending metrics to server, seconds")
-	serverAddress     = flag.String("a", "localhost:8080", "server address")
-)
+type Config struct {
+	PollIntervalSec   int    `env:"POLL_INTERVAL"`
+	ReportIntervalSec int    `env:"REPORT_INTERVAL"`
+	ServerAddress     string `env:"ADDRESS"`
+}
 
 type Agent struct {
 	metrics   *metrics
@@ -74,12 +76,29 @@ func (a *Agent) metricsReader() func(*metrics) {
 
 // run agent successfully or return error to panic in the main()
 func (a *Agent) Run() error {
+	var config Config
+	// flags takes less priority according to task description
+	flag.IntVar(&config.PollIntervalSec, "p", 2,
+		"interval between polling metrics, seconds; env: POLL_INTERVAL")
+	flag.IntVar(&config.ReportIntervalSec, "r", 10,
+		"interval between sending metrics to server, seconds; env: REPORT_INTERVAL")
+	flag.StringVar(&config.ServerAddress, "a", "localhost:8080",
+		"server address; env: ADDRESS")
 	flag.Parse()
-
 	if flag.NArg() > 0 {
 		flag.Usage()
 		return nil
 	}
+	fmt.Printf("config after flags: %+v\n", config)
+
+	// enviromnent takes higher priority according to task description
+	err := env.Parse(&config)
+	if err != nil {
+		fmt.Println(err)
+		flag.Usage()
+		return nil
+	}
+	fmt.Printf("config after env: %+v\n", config)
 
 	// set a.stopped on program interrupt requested
 	c := make(chan os.Signal, 1)
@@ -101,7 +120,7 @@ func (a *Agent) Run() error {
 	go func() {
 		defer wg.Done()
 		fmt.Println("[poller] start ")
-		pollInterval := time.Duration(*pollIntervalSec) * time.Second
+		pollInterval := time.Duration(config.PollIntervalSec) * time.Second
 		for {
 			a.metrics.Poll()
 			fmt.Println("[poller] polled", a.metrics.PollCount)
@@ -127,11 +146,11 @@ func (a *Agent) Run() error {
 			fmt.Println("[reporter] waiting for first poll")
 			time.Sleep(time.Microsecond)
 		}
-		reportInterval := time.Duration(*reportIntervalSec) * time.Second
+		reportInterval := time.Duration(config.ReportIntervalSec) * time.Second
 		for {
 			a.metrics.Read(a.metricsReader())
 			// report
-			a.Report()
+			a.Report(config.ServerAddress)
 			fmt.Println("[reporter] reported", a.metrics.PollCount)
 			// sleep reportInterval or interrupt
 			for t := updateInterval; t < reportInterval; t += updateInterval {
@@ -147,15 +166,15 @@ func (a *Agent) Run() error {
 	return nil
 }
 
-func (a *Agent) Report() {
+func (a *Agent) Report(serverAddress string) {
 	urls := make([]string, 0, len(a.gauge)+len(a.counter))
 	for key, gauge := range a.gauge {
 		urls = append(urls, strings.Join(
-			[]string{"http://" + *serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
+			[]string{"http://" + serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
 	}
 	for key, counter := range a.counter {
 		urls = append(urls, strings.Join(
-			[]string{"http://" + *serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
+			[]string{"http://" + serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
 	}
 	var (
 		firstError error
