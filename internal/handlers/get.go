@@ -13,6 +13,9 @@ func Get(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
 
+		// TODO PR #5
+		// классно было бы сделать промежуточный бизнес слой, в который ты бы
+		// просто передавал type и name, чтобы хэндлер остался простым и лаконичным
 		var str string
 		switch metricType {
 		case "gauge":

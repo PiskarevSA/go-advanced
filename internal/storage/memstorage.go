@@ -2,6 +2,9 @@ package storage
 
 import "sync"
 
+// TODO PR #5
+// Вместо sync.Mutex можно использовать sync.RWMutex и соответственно
+// sync.RLock sync.RUnlock, которые не блокируется при чтении
 type MemStorage struct {
 	mutex sync.Mutex
 

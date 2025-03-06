@@ -10,6 +10,10 @@ import (
 // POST "text/plain" /update/{type}/{name}/{value}
 func Update(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
+		// TODO PR #5
+		// Вот эти все параметры в каждом хэндлере можно валидировать и если они
+		// неправильные, возвращать не NotFound, а BadRequest
+
 		// incorrect metric type should return http.StatusBadRequest
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")

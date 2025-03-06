@@ -16,6 +16,11 @@ import (
 
 const updateInterval = 100 * time.Millisecond
 
+// TODO PR #5
+// для конфига можно сделать отдельный пакет на уровне с internal
+//
+// config/config.go
+// internal/...
 type Config struct {
 	PollIntervalSec   int    `env:"POLL_INTERVAL"`
 	ReportIntervalSec int    `env:"REPORT_INTERVAL"`
@@ -38,6 +43,10 @@ func NewAgent() *Agent {
 	}
 }
 
+// TODO PR #5
+// В коде metricsReader и Report используется изменение мап без блокировки, что
+// в многопоточной среде приведет к панике (fatal error: concurrent map writes).
+// Нужно использовать мьютексы, если хотим делать это всё дело асихнронно
 func (a *Agent) metricsReader() func(*metrics) {
 	return func(m *metrics) {
 		// runtime metrics
@@ -74,6 +83,26 @@ func (a *Agent) metricsReader() func(*metrics) {
 	}
 }
 
+// TODO PR #5
+// В функции нарушен принцип единой ответственно. Стоит разнести на хелперы.
+// Сейчас тут и конфиг, и poll и report.
+//
+// Также конфиг стоит парсить в мэйне
+//
+// В идеале должно стать как-то так. Названия от балды, придумай, как лучше
+//
+// func (a *Agent) Run() error {
+// 	config, err := a.parseConfig()
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	ctx, cancel := a.setupSignalHandler()
+// 	defer cancel()
+//
+// 	return a.startWorkers(ctx, config)
+// }
+
 // run agent successfully or return error to panic in the main()
 func (a *Agent) Run() error {
 	var config Config
@@ -101,6 +130,23 @@ func (a *Agent) Run() error {
 	fmt.Printf("config after env: %+v\n", config)
 
 	// set a.stopped on program interrupt requested
+	// TODO PR #5
+	// Сейчас горутины не завершаются, если поступил os.Interrupt.
+	// Стоит воспользоваться контекстом с отменой и передавать этот контекст
+	// внутрь методов, запускающих горутины
+	//
+	// ctx, cancel := context.WithCancel(context.Background())
+	// defer cancel()
+	//
+	// c := make(chan os.Signal, 1)
+	// signal.Notify(c, os.Interrupt)
+	//
+	// go func() {
+	// 	<-c
+	// 	fmt.Println("[signal] Interrupt signal received")
+	// 	a.stopped.Store(true)
+	// 	cancel() // Завершаем все горутины
+	// }()
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	wg := sync.WaitGroup{}
@@ -114,6 +160,41 @@ func (a *Agent) Run() error {
 			break
 		}
 	}()
+
+	// TODO PR #5
+	// код из каждой горутины можно вынести в свой хелпер метод типа
+	// a.pollMetrics и a.reportMetrics. Сделает код чище и приятнее.
+	//
+	// Типа такого
+	//
+	// Запускает воркеры для опроса и отправки метрик
+	// func (a *Agent) startWorkers(ctx context.Context, config Config) error {
+	// 	var wg sync.WaitGroup
+	//
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		defer wg.Done()
+	// 		a.pollMetrics(ctx, time.Duration(config.PollIntervalSec)*time.Second)
+	// 	}()
+	//
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		defer wg.Done()
+	// 		a.reportMetrics(ctx, time.Duration(config.ReportIntervalSec)*time.Second, config.ServerAddress)
+	// 	}()
+	//
+	// 	wg.Wait()
+	// 	return nil
+	// }
+	//
+	// TODO PR #5
+	// Также в циклах for нам нужно будет добавить select, чтобы слушать
+	// отмену контекста
+	// Пример:
+	//
+	// case <-ctx.Done():
+	// 		fmt.Println("[poller] shutdown")
+	// 		return
 
 	// poll metrics periodically
 	wg.Add(1)
@@ -182,6 +263,9 @@ func (a *Agent) Report(serverAddress string) {
 	)
 	for _, url := range urls {
 		res, err := a.ReportToURL(url)
+		// TODO PR #5
+		// лучше просто сначала проверять на ошибку, а после проверки
+		// сделать defer res.Body.Close(), тогда не нужна проверка на nil
 		if res != nil {
 			res.Body.Close()
 		}
@@ -205,6 +289,19 @@ func (a *Agent) Report(serverAddress string) {
 	}
 }
 
+// TODO PR #5
+// Текущий код создает новый HTTP-клиент на каждый запрос, что неэффективно.
+// Используем http.Client (желательно с таймаутом)
+//
+//	type Agent struct {
+//		httpClient *http.Client
+//	}
+//
+//	a := &Agent{
+//		httpClient: &http.Client{
+//			Timeout: 5 * time.Second,
+//		},
+//	}
 func (a *Agent) ReportToURL(url string) (*http.Response, error) {
 	res, err := http.Post(url, "text/plain", http.NoBody)
 	if res != nil {

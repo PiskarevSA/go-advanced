@@ -13,6 +13,9 @@ type (
 	counter int64
 )
 
+// TODO PR #5
+// структура как-то излишне выглядит. Не лучше сделать мапу, где ключ
+// просто название метрики? Может и не лучше, но ты подумай
 type metrics struct {
 	mutex sync.Mutex
 	// runtime metrics

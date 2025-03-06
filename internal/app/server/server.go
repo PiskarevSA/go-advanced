@@ -24,6 +24,12 @@ func NewServer() *Server {
 	}
 }
 
+// TODO PR #5
+// вот это всё бы вынести в отдельный пакет и хелпер метод и делать в мэйне
+// и при надобности передавать в Run или структуру server'а
+//
+// прим. пер.: речь при строки по работе с flag и env
+
 // run server successfully or return error to panic in the main()
 func (s *Server) Run() error {
 	var config Config
