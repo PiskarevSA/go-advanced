@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/PiskarevSA/go-advanced/internal/storage"
+	"github.com/PiskarevSA/go-advanced/internal/usecases"
 )
 
 type Server struct {
@@ -25,7 +26,8 @@ func NewServer() *Server {
 
 // run server successfully or return false immediately
 func (s *Server) Run(config *Config) bool {
-	r := MetricsRouter(s.storage)
+	usecase := usecases.NewMetrics(s.storage)
+	r := MetricsRouter(usecase)
 	err := http.ListenAndServe(config.ServerAddress, r)
 	if err != nil {
 		log.Println(err)

@@ -7,8 +7,13 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type Getter interface {
+	Gauge(key string) (value float64, exist bool)
+	Counter(key string) (value int64, exist bool)
+}
+
 // GET /value/{type}/{name}
-func Get(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
+func Get(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
@@ -19,7 +24,7 @@ func Get(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
 		var str string
 		switch metricType {
 		case "gauge":
-			value, exist := repo.Gauge(metricName)
+			value, exist := getter.Gauge(metricName)
 			if !exist {
 				http.NotFound(res, req)
 				return
@@ -27,7 +32,7 @@ func Get(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
 			str = fmt.Sprint(value)
 
 		case "counter":
-			value, exist := repo.Counter(metricName)
+			value, exist := getter.Counter(metricName)
 			if !exist {
 				http.NotFound(res, req)
 				return

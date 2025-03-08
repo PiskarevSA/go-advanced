@@ -7,8 +7,13 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type Updater interface {
+	SetGauge(key string, value float64)
+	SetCounter(key string, value int64)
+}
+
 // POST "text/plain" /update/{type}/{name}/{value}
-func Update(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
+func Update(updater Updater) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		// TODO PR #5
 		// Вот эти все параметры в каждом хэндлере можно валидировать и если они
@@ -31,7 +36,7 @@ func Update(repo Repositories) func(res http.ResponseWriter, req *http.Request) 
 					http.StatusBadRequest)
 				return
 			}
-			repo.SetGauge(metricName, f64)
+			updater.SetGauge(metricName, f64)
 		case "counter":
 			if len(metricName) == 0 {
 				http.NotFound(res, req)
@@ -43,7 +48,7 @@ func Update(repo Repositories) func(res http.ResponseWriter, req *http.Request) 
 					http.StatusBadRequest)
 				return
 			}
-			repo.SetCounter(metricName, i64)
+			updater.SetCounter(metricName, i64)
 		case "":
 			http.Error(res, "empty metric type",
 				http.StatusBadRequest)

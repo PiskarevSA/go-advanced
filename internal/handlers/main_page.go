@@ -8,8 +8,12 @@ import (
 	"strings"
 )
 
+type Dumper interface {
+	Dump() (gauge map[string]float64, counter map[string]int64)
+}
+
 // GET /
-func MainPage(repo Repositories) func(res http.ResponseWriter, req *http.Request) {
+func MainPage(dumper Dumper) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set("Content-Type", "text/html")
 		// TODO PR #5
@@ -42,7 +46,7 @@ func MainPage(repo Repositories) func(res http.ResponseWriter, req *http.Request
 
 		lines = append(lines, "</tr>")
 
-		gauge, counter := repo.Dump()
+		gauge, counter := dumper.Dump()
 
 		var keys []string
 		for k := range gauge {
