@@ -1,15 +1,15 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 
+	"github.com/PiskarevSA/go-advanced/internal/errors"
 	"github.com/go-chi/chi/v5"
 )
 
 type Getter interface {
-	Gauge(key string) (value float64, exist bool)
-	Counter(key string) (value int64, exist bool)
+	Get(metricType string, metricName string) (
+		value string, err error)
 }
 
 // GET /value/{type}/{name}
@@ -18,32 +18,23 @@ func Get(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
 
-		// TODO PR #5
-		// классно было бы сделать промежуточный бизнес слой, в который ты бы
-		// просто передавал type и name, чтобы хэндлер остался простым и лаконичным
-		var str string
-		switch metricType {
-		case "gauge":
-			value, exist := getter.Gauge(metricName)
-			if !exist {
+		value, err := getter.Get(metricType, metricName)
+		if err != nil {
+			switch err.(type) {
+			case *errors.ErrEmptyMetricName:
 				http.NotFound(res, req)
-				return
-			}
-			str = fmt.Sprint(value)
-
-		case "counter":
-			value, exist := getter.Counter(metricName)
-			if !exist {
+			case *errors.InvalidMetricTypeError:
 				http.NotFound(res, req)
-				return
+			case *errors.MetricNameNotFoundError:
+				http.NotFound(res, req)
+			default:
+				http.Error(res, err.Error(), http.StatusInternalServerError)
 			}
-			str = fmt.Sprint(value)
-		default:
-			http.NotFound(res, req)
 			return
 		}
+
 		// success
-		_, err := res.Write([]byte(str))
+		_, err = res.Write([]byte(value))
 		if err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return

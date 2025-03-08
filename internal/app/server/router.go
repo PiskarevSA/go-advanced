@@ -7,9 +7,8 @@ import (
 
 type Usecase interface {
 	SetGauge(key string, value float64)
-	Gauge(key string) (value float64, exist bool)
+	Get(metricType string, metricName string) (value string, err error)
 	SetCounter(key string, value int64)
-	Counter(key string) (value int64, exist bool)
 	Dump() (gauge map[string]float64, counter map[string]int64)
 }
 

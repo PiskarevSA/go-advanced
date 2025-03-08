@@ -18,12 +18,6 @@ func NewServer() *Server {
 	}
 }
 
-// TODO PR #5
-// вот это всё бы вынести в отдельный пакет и хелпер метод и делать в мэйне
-// и при надобности передавать в Run или структуру server'а
-//
-// прим. пер.: речь при строки по работе с flag и env
-
 // run server successfully or return false immediately
 func (s *Server) Run(config *Config) bool {
 	usecase := usecases.NewMetrics(s.storage)

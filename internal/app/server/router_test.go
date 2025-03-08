@@ -6,19 +6,35 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/PiskarevSA/go-advanced/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+type mockGetParams struct {
+	metricType string
+	metricName string
+	value      string
+	error      error
+}
+
 type mockUsecase struct {
-	t             *testing.T
-	method        string
-	gaugeKey      string
-	gaugeValue    float64
-	gaugeExists   bool
-	counterKey    string
-	counterValue  int64
-	counterExists bool
+	t            *testing.T
+	method       string
+	gaugeKey     string
+	gaugeValue   float64
+	get          mockGetParams
+	counterKey   string
+	counterValue int64
+	called       bool
+}
+
+func expectNothing(t *testing.T) *mockUsecase {
+	return &mockUsecase{
+		t:      t,
+		method: "Nothing",
+		called: true,
+	}
 }
 
 func expectSetGauge(t *testing.T, key string, value float64) *mockUsecase {
@@ -30,13 +46,18 @@ func expectSetGauge(t *testing.T, key string, value float64) *mockUsecase {
 	}
 }
 
-func expectGauge(t *testing.T, key string, value float64, exists bool) *mockUsecase {
+func expectGet(t *testing.T, metricType string, metricName string,
+	value string, error error,
+) *mockUsecase {
 	return &mockUsecase{
-		t:           t,
-		method:      "Gauge",
-		gaugeKey:    key,
-		gaugeValue:  value,
-		gaugeExists: exists,
+		t:      t,
+		method: "Get",
+		get: mockGetParams{
+			metricType: metricType,
+			metricName: metricName,
+			error:      error,
+			value:      value,
+		},
 	}
 }
 
@@ -49,42 +70,33 @@ func expectSetCounter(t *testing.T, key string, value int64) *mockUsecase {
 	}
 }
 
-func expectCounter(t *testing.T, key string, value int64, exists bool) *mockUsecase {
-	return &mockUsecase{
-		t:             t,
-		method:        "Counter",
-		counterKey:    key,
-		counterValue:  value,
-		counterExists: exists,
-	}
-}
-
 func (m *mockUsecase) SetGauge(key string, value float64) {
 	assert.Equal(m.t, m.method, "SetGauge")
 	assert.Equal(m.t, m.gaugeKey, key)
 	assert.Equal(m.t, m.gaugeValue, value)
+	m.called = true
 }
 
-func (m *mockUsecase) Gauge(key string) (value float64, exist bool) {
-	assert.Equal(m.t, m.method, "Gauge")
-	assert.Equal(m.t, m.gaugeKey, key)
-	return m.gaugeValue, m.gaugeExists
+func (m *mockUsecase) Get(metricType string, metricName string) (
+	value string, err error,
+) {
+	assert.Equal(m.t, m.method, "Get")
+	assert.Equal(m.t, m.get.metricType, metricType)
+	assert.Equal(m.t, m.get.metricName, metricName)
+	m.called = true
+	return m.get.value, m.get.error
 }
 
 func (m *mockUsecase) SetCounter(key string, value int64) {
 	assert.Equal(m.t, m.method, "SetCounter")
 	assert.Equal(m.t, m.counterKey, key)
 	assert.Equal(m.t, m.counterValue, value)
-}
-
-func (m *mockUsecase) Counter(key string) (value int64, exist bool) {
-	assert.Equal(m.t, m.method, "Counter")
-	assert.Equal(m.t, m.counterKey, key)
-	return m.counterValue, m.counterExists
+	m.called = true
 }
 
 func (m *mockUsecase) Dump() (gauge map[string]float64, counter map[string]int64) {
 	require.Fail(m.t, "unexpected call")
+	m.called = true
 	return
 }
 
@@ -151,7 +163,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPatch,
 				url:         "/update/gauge/foo/1.23",
-				mockUsecase: nil,
+				mockUsecase: expectNothing(t),
 			},
 			want: want{
 				code:        http.StatusMethodNotAllowed,
@@ -164,7 +176,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				url:         "/update/",
-				mockUsecase: nil,
+				mockUsecase: expectNothing(t),
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -177,7 +189,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				url:         "/update/foo/123/456",
-				mockUsecase: nil,
+				mockUsecase: expectNothing(t),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -190,7 +202,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				url:         "/update/gauge",
-				mockUsecase: nil,
+				mockUsecase: expectNothing(t),
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -203,7 +215,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				url:         "/update/gauge/foo",
-				mockUsecase: nil,
+				mockUsecase: expectNothing(t),
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -216,7 +228,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				url:         "/update/gauge/foo/qwe",
-				mockUsecase: nil,
+				mockUsecase: expectNothing(t),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -229,7 +241,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				url:         "/update/gauge/foo/value",
-				mockUsecase: nil,
+				mockUsecase: expectNothing(t),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -242,7 +254,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodGet,
 				url:         "/value/gauge/foo",
-				mockUsecase: expectGauge(t, "foo", 1.23, true),
+				mockUsecase: expectGet(t, "gauge", "foo", "1.23", nil),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -255,7 +267,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodGet,
 				url:         "/value/counter/bar",
-				mockUsecase: expectCounter(t, "bar", 456, true),
+				mockUsecase: expectGet(t, "counter", "bar", "456", nil),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -268,7 +280,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPatch,
 				url:         "/value/gauge/foo",
-				mockUsecase: nil,
+				mockUsecase: expectNothing(t),
 			},
 			want: want{
 				code:        http.StatusMethodNotAllowed,
@@ -281,7 +293,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodGet,
 				url:         "/value/foo",
-				mockUsecase: nil,
+				mockUsecase: expectNothing(t),
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -292,9 +304,10 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "value: unknown metric name",
 			given: given{
-				method:      http.MethodGet,
-				url:         "/value/gauge/foo",
-				mockUsecase: expectGauge(t, "foo", 0.0, false),
+				method: http.MethodGet,
+				url:    "/value/gauge/foo",
+				mockUsecase: expectGet(t, "gauge", "foo",
+					"", errors.NewMetricNameNotFoundError("foo")),
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -314,6 +327,9 @@ func TestMetricsRouter(t *testing.T) {
 			assert.Equal(t, tt.want.code, respCode)
 			assert.Equal(t, tt.want.contentType, respContentType)
 			assert.Equal(t, tt.want.response, respBody)
+			if tt.given.mockUsecase.method != "Nothing" {
+				assert.Truef(t, tt.given.mockUsecase.called, "call of %v expected", tt.given.mockUsecase.method)
+			}
 		})
 	}
 }

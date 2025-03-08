@@ -1,5 +1,11 @@
 package usecases
 
+import (
+	"fmt"
+
+	"github.com/PiskarevSA/go-advanced/internal/errors"
+)
+
 type Repositories interface {
 	SetGauge(key string, value float64)
 	Gauge(key string) (value float64, exist bool)
@@ -8,7 +14,6 @@ type Repositories interface {
 	Dump() (gauge map[string]float64, counter map[string]int64)
 }
 
-// metrics usecase is just a wrapper to repo for now
 type Metrics struct {
 	repo Repositories
 }
@@ -23,16 +28,30 @@ func (m *Metrics) SetGauge(key string, value float64) {
 	m.repo.SetGauge(key, value)
 }
 
-func (m *Metrics) Gauge(key string) (value float64, exist bool) {
-	return m.repo.Gauge(key)
+func (m *Metrics) Get(metricType string, metricName string) (
+	value string, err error,
+) {
+	switch metricType {
+	case "gauge":
+		gauge, exist := m.repo.Gauge(metricName)
+		if !exist {
+			return "", errors.NewMetricNameNotFoundError(metricName)
+		}
+		return fmt.Sprint(gauge), nil
+
+	case "counter":
+		counter, exist := m.repo.Counter(metricName)
+		if !exist {
+			return "", errors.NewMetricNameNotFoundError(metricName)
+		}
+		return fmt.Sprint(counter), nil
+	default:
+		return "", errors.NewInvalidMetricTypeError(metricType)
+	}
 }
 
 func (m *Metrics) SetCounter(key string, value int64) {
 	m.repo.SetCounter(key, value)
-}
-
-func (m *Metrics) Counter(key string) (value int64, exist bool) {
-	return m.repo.Counter(key)
 }
 
 func (m *Metrics) Dump() (gauge map[string]float64, counter map[string]int64) {
