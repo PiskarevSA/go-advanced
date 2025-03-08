@@ -10,10 +10,6 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/storage"
 )
 
-type Config struct {
-	ServerAddress string `env:"ADDRESS"`
-}
-
 type Server struct {
 	storage *storage.MemStorage
 }

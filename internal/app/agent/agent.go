@@ -17,17 +17,6 @@ import (
 
 const updateInterval = 100 * time.Millisecond
 
-// TODO PR #5
-// для конфига можно сделать отдельный пакет на уровне с internal
-//
-// config/config.go
-// internal/...
-type Config struct {
-	PollIntervalSec   int    `env:"POLL_INTERVAL"`
-	ReportIntervalSec int    `env:"REPORT_INTERVAL"`
-	ServerAddress     string `env:"ADDRESS"`
-}
-
 type Agent struct {
 	metrics   *metrics
 	gauge     map[string]gauge
