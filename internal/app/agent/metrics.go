@@ -13,46 +13,17 @@ type (
 	counter int64
 )
 
-// TODO PR #5
-// структура как-то излишне выглядит. Не лучше сделать мапу, где ключ
-// просто название метрики? Может и не лучше, но ты подумай
 type metrics struct {
-	mutex sync.Mutex
-	// runtime metrics
-	Alloc         gauge
-	BuckHashSys   gauge
-	Frees         gauge
-	GCCPUFraction gauge
-	GCSys         gauge
-	HeapAlloc     gauge
-	HeapIdle      gauge
-	HeapInuse     gauge
-	HeapObjects   gauge
-	HeapReleased  gauge
-	HeapSys       gauge
-	LastGC        gauge
-	Lookups       gauge
-	MCacheInuse   gauge
-	MCacheSys     gauge
-	MSpanInuse    gauge
-	MSpanSys      gauge
-	Mallocs       gauge
-	NextGC        gauge
-	NumForcedGC   gauge
-	NumGC         gauge
-	OtherSys      gauge
-	PauseTotalNs  gauge
-	StackInuse    gauge
-	StackSys      gauge
-	Sys           gauge
-	TotalAlloc    gauge
-	// custom metrics
-	RandomValue gauge
-	PollCount   counter
+	mutex   sync.Mutex
+	gauge   map[string]gauge
+	counter map[string]counter
 }
 
 func newMetrics() *metrics {
-	return &metrics{}
+	return &metrics{
+		gauge:   make(map[string]gauge),
+		counter: make(map[string]counter),
+	}
 }
 
 // returns poll count
@@ -62,42 +33,54 @@ func (m *metrics) Poll() counter {
 	// runtime metrics
 	ms := runtime.MemStats{}
 	runtime.ReadMemStats(&ms)
-	m.Alloc = gauge(ms.Alloc)
-	m.BuckHashSys = gauge(ms.BuckHashSys)
-	m.Frees = gauge(ms.Frees)
-	m.GCCPUFraction = gauge(ms.GCCPUFraction)
-	m.GCSys = gauge(ms.GCSys)
-	m.HeapAlloc = gauge(ms.HeapAlloc)
-	m.HeapIdle = gauge(ms.HeapIdle)
-	m.HeapInuse = gauge(ms.HeapInuse)
-	m.HeapObjects = gauge(ms.HeapObjects)
-	m.HeapReleased = gauge(ms.HeapReleased)
-	m.HeapSys = gauge(ms.HeapSys)
-	m.LastGC = gauge(ms.LastGC)
-	m.Lookups = gauge(ms.Lookups)
-	m.MCacheInuse = gauge(ms.MCacheInuse)
-	m.MCacheSys = gauge(ms.MCacheSys)
-	m.MSpanInuse = gauge(ms.MSpanInuse)
-	m.MSpanSys = gauge(ms.MSpanSys)
-	m.Mallocs = gauge(ms.Mallocs)
-	m.NextGC = gauge(ms.NextGC)
-	m.NumForcedGC = gauge(ms.NumForcedGC)
-	m.NumGC = gauge(ms.NumGC)
-	m.OtherSys = gauge(ms.OtherSys)
-	m.PauseTotalNs = gauge(ms.PauseTotalNs)
-	m.StackInuse = gauge(ms.StackInuse)
-	m.StackSys = gauge(ms.StackSys)
-	m.Sys = gauge(ms.Sys)
-	m.TotalAlloc = gauge(ms.TotalAlloc)
+	m.gauge["Alloc"] = gauge(ms.Alloc)
+	m.gauge["BuckHashSys"] = gauge(ms.BuckHashSys)
+	m.gauge["Frees"] = gauge(ms.Frees)
+	m.gauge["GCCPUFraction"] = gauge(ms.GCCPUFraction)
+	m.gauge["GCSys"] = gauge(ms.GCSys)
+	m.gauge["HeapAlloc"] = gauge(ms.HeapAlloc)
+	m.gauge["HeapIdle"] = gauge(ms.HeapIdle)
+	m.gauge["HeapInuse"] = gauge(ms.HeapInuse)
+	m.gauge["HeapObjects"] = gauge(ms.HeapObjects)
+	m.gauge["HeapReleased"] = gauge(ms.HeapReleased)
+	m.gauge["HeapSys"] = gauge(ms.HeapSys)
+	m.gauge["LastGC"] = gauge(ms.LastGC)
+	m.gauge["Lookups"] = gauge(ms.Lookups)
+	m.gauge["MCacheInuse"] = gauge(ms.MCacheInuse)
+	m.gauge["MCacheSys"] = gauge(ms.MCacheSys)
+	m.gauge["MSpanInuse"] = gauge(ms.MSpanInuse)
+	m.gauge["MSpanSys"] = gauge(ms.MSpanSys)
+	m.gauge["Mallocs"] = gauge(ms.Mallocs)
+	m.gauge["NextGC"] = gauge(ms.NextGC)
+	m.gauge["NumForcedGC"] = gauge(ms.NumForcedGC)
+	m.gauge["NumGC"] = gauge(ms.NumGC)
+	m.gauge["OtherSys"] = gauge(ms.OtherSys)
+	m.gauge["PauseTotalNs"] = gauge(ms.PauseTotalNs)
+	m.gauge["StackInuse"] = gauge(ms.StackInuse)
+	m.gauge["StackSys"] = gauge(ms.StackSys)
+	m.gauge["Sys"] = gauge(ms.Sys)
+	m.gauge["TotalAlloc"] = gauge(ms.TotalAlloc)
 	// custom metrics
 	randomInt64, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
-	m.RandomValue = gauge(randomInt64.Int64())
-	m.PollCount += 1
-	return m.PollCount
+	m.gauge["RandomValue"] = gauge(randomInt64.Int64())
+	m.counter["PollCount"] += 1
+
+	return m.counter["PollCount"]
 }
 
-func (m *metrics) Read(reader func(*metrics)) {
+func (m *metrics) Get() (counter, map[string]gauge, map[string]counter) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	reader(m)
+
+	gauge := make(map[string]gauge)
+	for k, v := range m.gauge {
+		gauge[k] = v
+	}
+
+	counter := make(map[string]counter)
+	for k, v := range m.counter {
+		counter[k] = v
+	}
+
+	return m.counter["PollCount"], gauge, counter
 }

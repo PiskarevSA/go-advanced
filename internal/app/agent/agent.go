@@ -32,42 +32,6 @@ func NewAgent() *Agent {
 	}
 }
 
-func (a *Agent) metricsReader(gauge map[string]gauge, counter map[string]counter) func(*metrics) {
-	return func(m *metrics) {
-		// runtime metrics
-		gauge["Alloc"] = m.Alloc
-		gauge["BuckHashSys"] = m.BuckHashSys
-		gauge["Frees"] = m.Frees
-		gauge["GCCPUFraction"] = m.GCCPUFraction
-		gauge["GCSys"] = m.GCSys
-		gauge["HeapAlloc"] = m.HeapAlloc
-		gauge["HeapIdle"] = m.HeapIdle
-		gauge["HeapInuse"] = m.HeapInuse
-		gauge["HeapObjects"] = m.HeapObjects
-		gauge["HeapReleased"] = m.HeapReleased
-		gauge["HeapSys"] = m.HeapSys
-		gauge["LastGC"] = m.LastGC
-		gauge["Lookups"] = m.Lookups
-		gauge["MCacheInuse"] = m.MCacheInuse
-		gauge["MCacheSys"] = m.MCacheSys
-		gauge["MSpanInuse"] = m.MSpanInuse
-		gauge["MSpanSys"] = m.MSpanSys
-		gauge["Mallocs"] = m.Mallocs
-		gauge["NextGC"] = m.NextGC
-		gauge["NumForcedGC"] = m.NumForcedGC
-		gauge["NumGC"] = m.NumGC
-		gauge["OtherSys"] = m.OtherSys
-		gauge["PauseTotalNs"] = m.PauseTotalNs
-		gauge["StackInuse"] = m.StackInuse
-		gauge["StackSys"] = m.StackSys
-		gauge["Sys"] = m.Sys
-		gauge["TotalAlloc"] = m.TotalAlloc
-		// custom metrics
-		gauge["RandomValue"] = m.RandomValue
-		counter["PollCount"] = m.PollCount
-	}
-}
-
 // run agent successfully or return false immediately
 func (a *Agent) Run(config *Config) bool {
 	ctx, cancel := a.setupSignalHandler()
@@ -154,12 +118,10 @@ func (a *Agent) startReporter(
 			time.Sleep(time.Microsecond)
 		}
 		for {
-			gauge := make(map[string]gauge)
-			counter := make(map[string]counter)
-			a.metrics.Read(a.metricsReader(gauge, counter))
+			pollCount, gauge, counter := a.metrics.Get()
 			// report
 			a.Report(ctx, serverAddress, gauge, counter)
-			log.Println("[reporter] reported", a.metrics.PollCount)
+			log.Println("[reporter] reported", pollCount)
 			// sleep reportInterval or interrupt
 			for t := time.Duration(0); t < reportInterval; t += updateInterval {
 				select {
