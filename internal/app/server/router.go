@@ -8,7 +8,7 @@ import (
 type Usecase interface {
 	Update(metricType string, metricName string, metricValue string) error
 	Get(metricType string, metricName string) (value string, err error)
-	Dump() (gauge map[string]float64, counter map[string]int64)
+	DumpIterator() func() (type_ string, name string, value string, exists bool)
 }
 
 func MetricsRouter(usecase Usecase) chi.Router {

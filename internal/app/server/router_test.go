@@ -93,10 +93,9 @@ func (m *mockUsecase) Get(metricType string, metricName string) (
 	return m.get.value, m.get.error
 }
 
-func (m *mockUsecase) Dump() (gauge map[string]float64, counter map[string]int64) {
+func (m *mockUsecase) DumpIterator() func() (type_ string, name string, value string, exists bool) {
 	require.Fail(m.t, "unexpected call")
-	m.called = true
-	return
+	return nil
 }
 
 func testRequest(t *testing.T, ts *httptest.Server, method, path string) (

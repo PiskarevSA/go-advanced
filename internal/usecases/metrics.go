@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 
 	"github.com/PiskarevSA/go-advanced/internal/errors"
@@ -13,6 +14,54 @@ type Repositories interface {
 	SetCounter(key string, value int64)
 	Counter(key string) (value int64, exist bool)
 	Dump() (gauge map[string]float64, counter map[string]int64)
+}
+
+type DumpRow struct {
+	type_ string
+	name  string
+	value string
+}
+
+type IteratableDump struct {
+	rows  []DumpRow
+	index int
+}
+
+func NewIteratableDump(gauge map[string]float64, counter map[string]int64) *IteratableDump {
+	result := IteratableDump{}
+
+	var keys []string
+	for k := range gauge {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		result.rows = append(result.rows, DumpRow{"gauge", k, fmt.Sprint(gauge[k])})
+	}
+
+	keys = make([]string, 0)
+	for k := range counter {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		result.rows = append(result.rows, DumpRow{"counter", k, fmt.Sprint(counter[k])})
+	}
+
+	return &result
+}
+
+func (d *IteratableDump) NextMetric() (
+	type_ string, name string, value string, exists bool,
+) {
+	if d.index < len(d.rows) {
+		row := &d.rows[d.index]
+		d.index += 1
+		return row.type_, row.name, row.value, true
+	}
+	return "", "", "", false
 }
 
 type Metrics struct {
@@ -35,7 +84,7 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 		if err != nil {
 			return errors.NewMetricValueIsNotValidError(err)
 		}
-		m.SetGauge(metricName, f64)
+		m.repo.SetGauge(metricName, f64)
 	case "counter":
 		if len(metricName) == 0 {
 			return errors.NewEmptyMetricNameError()
@@ -44,17 +93,13 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 		if err != nil {
 			return errors.NewMetricValueIsNotValidError(err)
 		}
-		m.SetCounter(metricName, i64)
+		m.repo.SetCounter(metricName, i64)
 	case "":
 		return errors.NewEmptyMetricTypeError()
 	default:
 		return errors.NewInvalidMetricTypeError(metricType)
 	}
 	return nil
-}
-
-func (m *Metrics) SetGauge(key string, value float64) {
-	m.repo.SetGauge(key, value)
 }
 
 func (m *Metrics) Get(metricType string, metricName string) (
@@ -81,10 +126,9 @@ func (m *Metrics) Get(metricType string, metricName string) (
 	}
 }
 
-func (m *Metrics) SetCounter(key string, value int64) {
-	m.repo.SetCounter(key, value)
-}
+func (m *Metrics) DumpIterator() func() (type_ string, name string, value string, exists bool) {
+	gauge, counter := m.repo.Dump()
 
-func (m *Metrics) Dump() (gauge map[string]float64, counter map[string]int64) {
-	return m.repo.Dump()
+	iteratableDump := NewIteratableDump(gauge, counter)
+	return iteratableDump.NextMetric
 }

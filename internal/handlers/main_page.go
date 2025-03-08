@@ -2,14 +2,12 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
-	"sort"
 	"strings"
 )
 
 type Dumper interface {
-	Dump() (gauge map[string]float64, counter map[string]int64)
+	DumpIterator() func() (type_ string, name string, value string, exists bool)
 }
 
 // GET /
@@ -26,6 +24,7 @@ func MainPage(dumper Dumper) func(res http.ResponseWriter, req *http.Request) {
 
 		var lines []string
 		lines = append(lines, "<!DOCTYPE html>")
+		lines = append(lines, "<title>Metrics</title>")
 		lines = append(lines, "<body>")
 		lines = append(lines, "<table>")
 
@@ -46,56 +45,29 @@ func MainPage(dumper Dumper) func(res http.ResponseWriter, req *http.Request) {
 
 		lines = append(lines, "</tr>")
 
-		gauge, counter := dumper.Dump()
-
-		var keys []string
-		for k := range gauge {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-
 		// TODO PR #5
 		// кароч странный код. Надо подумать, как упростить, чтобы не повторять
 		// его. Есть еще template пакет, посмотри, как с ним сделать
-		for _, k := range keys {
-			// header
+		metricsIterator := dumper.DumpIterator()
+
+		for {
+			type_, name, value, exists := metricsIterator()
+			if !exists {
+				break
+			}
+			// metric
 			lines = append(lines, "<tr>")
 			// .. type
 			lines = append(lines, "<td>")
-			lines = append(lines, "gauge")
+			lines = append(lines, type_)
 			lines = append(lines, "</td>")
-			// key
+			// .. key
 			lines = append(lines, "<td>")
-			lines = append(lines, k)
+			lines = append(lines, name)
 			lines = append(lines, "</td>")
-			// value
+			// .. value
 			lines = append(lines, "<td>")
-			lines = append(lines, fmt.Sprint(gauge[k]))
-			lines = append(lines, "</td>")
-
-			lines = append(lines, "</tr>")
-		}
-
-		keys = make([]string, 0)
-		for k := range counter {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-
-		for _, k := range keys {
-			// header
-			lines = append(lines, "<tr>")
-			// .. type
-			lines = append(lines, "<td>")
-			lines = append(lines, "counter")
-			lines = append(lines, "</td>")
-			// key
-			lines = append(lines, "<td>")
-			lines = append(lines, k)
-			lines = append(lines, "</td>")
-			// value
-			lines = append(lines, "<td>")
-			lines = append(lines, fmt.Sprint(counter[k]))
+			lines = append(lines, fmt.Sprint(value))
 			lines = append(lines, "</td>")
 
 			lines = append(lines, "</tr>")
@@ -104,10 +76,8 @@ func MainPage(dumper Dumper) func(res http.ResponseWriter, req *http.Request) {
 		lines = append(lines, "</table>")
 		lines = append(lines, "</body>")
 		_, err := res.Write([]byte(strings.Join(lines, "\n")))
-		// TODO PR #5
-		// Как будто тут надо возвращать ошибку
 		if err != nil {
-			log.Println(err)
+			http.Error(res, err.Error(), http.StatusInternalServerError)
 		}
 	}
 }
