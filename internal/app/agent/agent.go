@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -9,19 +11,23 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
 const updateInterval = 100 * time.Millisecond
 
 type Agent struct {
-	metrics   *metrics
-	readyRead atomic.Bool
-	stopped   atomic.Bool
+	httpClient *http.Client
+	metrics    *metrics
+	readyRead  atomic.Bool
 }
 
 func NewAgent() *Agent {
 	return &Agent{
+		httpClient: &http.Client{
+			Timeout: 5 * time.Second,
+		},
 		metrics: newMetrics(),
 	}
 }
@@ -62,117 +68,82 @@ func (a *Agent) metricsReader(gauge map[string]gauge, counter map[string]counter
 	}
 }
 
-// TODO PR #5
-// В функции нарушен принцип единой ответственно. Стоит разнести на хелперы.
-// Сейчас тут и конфиг, и poll и report.
-//
-// Также конфиг стоит парсить в мэйне
-//
-// В идеале должно стать как-то так. Названия от балды, придумай, как лучше
-//
-// func (a *Agent) Run() error {
-// 	config, err := a.parseConfig()
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	ctx, cancel := a.setupSignalHandler()
-// 	defer cancel()
-//
-// 	return a.startWorkers(ctx, config)
-// }
-
 // run agent successfully or return false immediately
 func (a *Agent) Run(config *Config) bool {
-	// set a.stopped on program interrupt requested
-	// TODO PR #5
-	// Сейчас горутины не завершаются, если поступил os.Interrupt.
-	// Стоит воспользоваться контекстом с отменой и передавать этот контекст
-	// внутрь методов, запускающих горутины
-	//
-	// ctx, cancel := context.WithCancel(context.Background())
-	// defer cancel()
-	//
-	// c := make(chan os.Signal, 1)
-	// signal.Notify(c, os.Interrupt)
-	//
-	// go func() {
-	// 	<-c
-	// 	log.Println("[signal] Interrupt signal received")
-	// 	a.stopped.Store(true)
-	// 	cancel() // Завершаем все горутины
-	// }()
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		log.Println("[signal] waiting for interrupt signal from OS")
-		defer wg.Done()
-		for range c {
-			a.stopped.Store(true)
-			log.Println("[signal] Interrupt signal from OS received")
-			break
-		}
-	}()
+	ctx, cancel := a.setupSignalHandler()
+	defer cancel() // Ensure cancel is called at the end to clean up
 
-	// TODO PR #5
-	// код из каждой горутины можно вынести в свой хелпер метод типа
-	// a.pollMetrics и a.reportMetrics. Сделает код чище и приятнее.
-	//
-	// Типа такого
-	//
-	// Запускает воркеры для опроса и отправки метрик
-	// func (a *Agent) startWorkers(ctx context.Context, config Config) error {
-	// 	var wg sync.WaitGroup
-	//
-	// 	wg.Add(1)
-	// 	go func() {
-	// 		defer wg.Done()
-	// 		a.pollMetrics(ctx, time.Duration(config.PollIntervalSec)*time.Second)
-	// 	}()
-	//
-	// 	wg.Add(1)
-	// 	go func() {
-	// 		defer wg.Done()
-	// 		a.reportMetrics(ctx, time.Duration(config.ReportIntervalSec)*time.Second, config.ServerAddress)
-	// 	}()
-	//
-	// 	wg.Wait()
-	// 	return nil
-	// }
-	//
-	// TODO PR #5
-	// Также в циклах for нам нужно будет добавить select, чтобы слушать
-	// отмену контекста
-	// Пример:
-	//
-	// case <-ctx.Done():
-	// 		log.Println("[poller] shutdown")
-	// 		return
+	a.startWorkers(ctx, config)
+
+	// agent will never fails actually
+	return true
+}
+
+func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
+	// Create a context that can be canceled
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Channel to listen for system signals (e.g., Ctrl+C)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		// Wait for an interrupt signal to initiate graceful shutdown
+		<-sigChan
+
+		// Handle shutdown signal (Ctrl+C or SIGTERM)
+		log.Println("Received shutdown signal. Shutting down gracefully...")
+
+		// Cancel the context to notify all goroutines to stop
+		cancel()
+	}()
+	return ctx, cancel
+}
+
+func (a *Agent) startWorkers(ctx context.Context, config *Config) {
+	// Wait group to ensure all goroutines finish before exiting
+	var wg sync.WaitGroup
 
 	// poll metrics periodically
+	pollInterval := time.Duration(config.PollIntervalSec) * time.Second
+	a.startPoller(ctx, &wg, pollInterval)
+
+	// report metrics to server periodically
+	reportInterval := time.Duration(config.ReportIntervalSec) * time.Second
+	a.startReporter(ctx, &wg, reportInterval, config.ServerAddress)
+
+	// Wait for all goroutines to finish
+	wg.Wait()
+}
+
+func (a *Agent) startPoller(ctx context.Context, wg *sync.WaitGroup, pollInterval time.Duration) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		log.Println("[poller] start ")
-		pollInterval := time.Duration(config.PollIntervalSec) * time.Second
+
 		for {
 			pollCount := a.metrics.Poll()
 			log.Println("[poller] polled", pollCount)
 			a.readyRead.Store(true)
 			// sleep pollInterval or interrupt
-			for t := updateInterval; t < pollInterval; t += updateInterval {
-				if a.stopped.Load() {
-					log.Println("[poller] shutdown")
+			for t := time.Duration(0); t < pollInterval; t += updateInterval {
+				select {
+				case <-ctx.Done():
+					// Handle context cancellation (graceful shutdown)
+					log.Printf("[poller] stopping: %v\n", ctx.Err())
 					return
+				default:
+					time.Sleep(updateInterval)
 				}
-				time.Sleep(updateInterval)
 			}
 		}
 	}()
+}
 
-	// report metrics to server periodically
+func (a *Agent) startReporter(
+	ctx context.Context, wg *sync.WaitGroup, reportInterval time.Duration, serverAddress string,
+) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -182,30 +153,32 @@ func (a *Agent) Run(config *Config) bool {
 			log.Println("[reporter] waiting for first poll")
 			time.Sleep(time.Microsecond)
 		}
-		reportInterval := time.Duration(config.ReportIntervalSec) * time.Second
 		for {
 			gauge := make(map[string]gauge)
 			counter := make(map[string]counter)
 			a.metrics.Read(a.metricsReader(gauge, counter))
 			// report
-			a.Report(config.ServerAddress, gauge, counter)
+			a.Report(ctx, serverAddress, gauge, counter)
 			log.Println("[reporter] reported", a.metrics.PollCount)
 			// sleep reportInterval or interrupt
-			for t := updateInterval; t < reportInterval; t += updateInterval {
-				if a.stopped.Load() {
-					log.Println("[reporter] shutdown")
+			for t := time.Duration(0); t < reportInterval; t += updateInterval {
+				select {
+				case <-ctx.Done():
+					// Handle context cancellation (graceful shutdown)
+					log.Printf("[reporter] stopping: %v\n", ctx.Err())
 					return
+				default:
+					time.Sleep(updateInterval)
 				}
-				time.Sleep(updateInterval)
 			}
 		}
 	}()
-	wg.Wait()
-	return true
 }
 
+// sending a report consists of multiple HTTP requests; before each of them, it
+// is checked whether it is necessary to abort the execution
 func (a *Agent) Report(
-	serverAddress string, gauge map[string]gauge, counter map[string]counter,
+	ctx context.Context, serverAddress string, gauge map[string]gauge, counter map[string]counter,
 ) {
 	urls := make([]string, 0, len(gauge)+len(counter))
 	for key, gauge := range gauge {
@@ -220,23 +193,22 @@ func (a *Agent) Report(
 		firstError error
 		errorCount int
 	)
+	log.Println("[reporter] start reporting")
 	for _, url := range urls {
-		res, err := a.ReportToURL(url)
-		// TODO PR #5
-		// лучше просто сначала проверять на ошибку, а после проверки
-		// сделать defer res.Body.Close(), тогда не нужна проверка на nil
-		if res != nil {
-			res.Body.Close()
-		}
-		if err != nil {
-			if firstError == nil {
-				firstError = err
-			}
-			errorCount += 1
-		}
-		if a.stopped.Load() {
-			log.Println("- interrupt reporting")
+		select {
+		case <-ctx.Done():
+			// Handle context cancellation (graceful shutdown)
+			log.Printf("[reporter] interrupt reporting: %v\n", ctx.Err())
 			return
+		default:
+			// send next metric
+			err := a.ReportToURL(url)
+			if err != nil {
+				if errorCount == 0 {
+					firstError = err
+				}
+				errorCount += 1
+			}
 		}
 	}
 	if errorCount > 0 {
@@ -248,29 +220,24 @@ func (a *Agent) Report(
 	}
 }
 
-// TODO PR #5
-// Текущий код создает новый HTTP-клиент на каждый запрос, что неэффективно.
-// Используем http.Client (желательно с таймаутом)
-//
-//	type Agent struct {
-//		httpClient *http.Client
-//	}
-//
-//	a := &Agent{
-//		httpClient: &http.Client{
-//			Timeout: 5 * time.Second,
-//		},
-//	}
-func (a *Agent) ReportToURL(url string) (*http.Response, error) {
-	res, err := http.Post(url, "text/plain", http.NoBody)
-	if res != nil {
-		if res.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("POST %v returns %v", url, res.Status)
-		}
-		defer res.Body.Close()
-	}
+func (a *Agent) ReportToURL(url string) error {
+	res, err := a.httpClient.Post(url, "text/plain", http.NoBody)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return res, err
+	defer res.Body.Close()
+
+	// The default HTTP client's Transport may not
+	// reuse HTTP/1.x "keep-alive" TCP connections if the Body is
+	// not read to completion and closed.
+	_, err = io.Copy(io.Discard, res.Body)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("POST %v returns %v", url, res.Status)
+	}
+
+	return nil
 }
