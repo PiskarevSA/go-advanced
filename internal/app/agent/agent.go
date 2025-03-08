@@ -19,8 +19,6 @@ const updateInterval = 100 * time.Millisecond
 
 type Agent struct {
 	metrics   *metrics
-	gauge     map[string]gauge
-	counter   map[string]counter
 	readyRead atomic.Bool
 	stopped   atomic.Bool
 }
@@ -28,48 +26,42 @@ type Agent struct {
 func NewAgent() *Agent {
 	return &Agent{
 		metrics: newMetrics(),
-		gauge:   make(map[string]gauge),
-		counter: make(map[string]counter),
 	}
 }
 
-// TODO PR #5
-// В коде metricsReader и Report используется изменение мап без блокировки, что
-// в многопоточной среде приведет к панике (fatal error: concurrent map writes).
-// Нужно использовать мьютексы, если хотим делать это всё дело асихнронно
-func (a *Agent) metricsReader() func(*metrics) {
+func (a *Agent) metricsReader(gauge map[string]gauge, counter map[string]counter) func(*metrics) {
 	return func(m *metrics) {
 		// runtime metrics
-		a.gauge["Alloc"] = m.Alloc
-		a.gauge["BuckHashSys"] = m.BuckHashSys
-		a.gauge["Frees"] = m.Frees
-		a.gauge["GCCPUFraction"] = m.GCCPUFraction
-		a.gauge["GCSys"] = m.GCSys
-		a.gauge["HeapAlloc"] = m.HeapAlloc
-		a.gauge["HeapIdle"] = m.HeapIdle
-		a.gauge["HeapInuse"] = m.HeapInuse
-		a.gauge["HeapObjects"] = m.HeapObjects
-		a.gauge["HeapReleased"] = m.HeapReleased
-		a.gauge["HeapSys"] = m.HeapSys
-		a.gauge["LastGC"] = m.LastGC
-		a.gauge["Lookups"] = m.Lookups
-		a.gauge["MCacheInuse"] = m.MCacheInuse
-		a.gauge["MCacheSys"] = m.MCacheSys
-		a.gauge["MSpanInuse"] = m.MSpanInuse
-		a.gauge["MSpanSys"] = m.MSpanSys
-		a.gauge["Mallocs"] = m.Mallocs
-		a.gauge["NextGC"] = m.NextGC
-		a.gauge["NumForcedGC"] = m.NumForcedGC
-		a.gauge["NumGC"] = m.NumGC
-		a.gauge["OtherSys"] = m.OtherSys
-		a.gauge["PauseTotalNs"] = m.PauseTotalNs
-		a.gauge["StackInuse"] = m.StackInuse
-		a.gauge["StackSys"] = m.StackSys
-		a.gauge["Sys"] = m.Sys
-		a.gauge["TotalAlloc"] = m.TotalAlloc
+		gauge["Alloc"] = m.Alloc
+		gauge["BuckHashSys"] = m.BuckHashSys
+		gauge["Frees"] = m.Frees
+		gauge["GCCPUFraction"] = m.GCCPUFraction
+		gauge["GCSys"] = m.GCSys
+		gauge["HeapAlloc"] = m.HeapAlloc
+		gauge["HeapIdle"] = m.HeapIdle
+		gauge["HeapInuse"] = m.HeapInuse
+		gauge["HeapObjects"] = m.HeapObjects
+		gauge["HeapReleased"] = m.HeapReleased
+		gauge["HeapSys"] = m.HeapSys
+		gauge["LastGC"] = m.LastGC
+		gauge["Lookups"] = m.Lookups
+		gauge["MCacheInuse"] = m.MCacheInuse
+		gauge["MCacheSys"] = m.MCacheSys
+		gauge["MSpanInuse"] = m.MSpanInuse
+		gauge["MSpanSys"] = m.MSpanSys
+		gauge["Mallocs"] = m.Mallocs
+		gauge["NextGC"] = m.NextGC
+		gauge["NumForcedGC"] = m.NumForcedGC
+		gauge["NumGC"] = m.NumGC
+		gauge["OtherSys"] = m.OtherSys
+		gauge["PauseTotalNs"] = m.PauseTotalNs
+		gauge["StackInuse"] = m.StackInuse
+		gauge["StackSys"] = m.StackSys
+		gauge["Sys"] = m.Sys
+		gauge["TotalAlloc"] = m.TotalAlloc
 		// custom metrics
-		a.gauge["RandomValue"] = m.RandomValue
-		a.counter["PollCount"] = m.PollCount
+		gauge["RandomValue"] = m.RandomValue
+		counter["PollCount"] = m.PollCount
 	}
 }
 
@@ -193,8 +185,8 @@ func (a *Agent) Run() error {
 		log.Println("[poller] start ")
 		pollInterval := time.Duration(config.PollIntervalSec) * time.Second
 		for {
-			a.metrics.Poll()
-			log.Println("[poller] polled", a.metrics.PollCount)
+			pollCount := a.metrics.Poll()
+			log.Println("[poller] polled", pollCount)
 			a.readyRead.Store(true)
 			// sleep pollInterval or interrupt
 			for t := updateInterval; t < pollInterval; t += updateInterval {
@@ -219,9 +211,11 @@ func (a *Agent) Run() error {
 		}
 		reportInterval := time.Duration(config.ReportIntervalSec) * time.Second
 		for {
-			a.metrics.Read(a.metricsReader())
+			gauge := make(map[string]gauge)
+			counter := make(map[string]counter)
+			a.metrics.Read(a.metricsReader(gauge, counter))
 			// report
-			a.Report(config.ServerAddress)
+			a.Report(config.ServerAddress, gauge, counter)
 			log.Println("[reporter] reported", a.metrics.PollCount)
 			// sleep reportInterval or interrupt
 			for t := updateInterval; t < reportInterval; t += updateInterval {
@@ -237,13 +231,15 @@ func (a *Agent) Run() error {
 	return nil
 }
 
-func (a *Agent) Report(serverAddress string) {
-	urls := make([]string, 0, len(a.gauge)+len(a.counter))
-	for key, gauge := range a.gauge {
+func (a *Agent) Report(
+	serverAddress string, gauge map[string]gauge, counter map[string]counter,
+) {
+	urls := make([]string, 0, len(gauge)+len(counter))
+	for key, gauge := range gauge {
 		urls = append(urls, strings.Join(
 			[]string{"http://" + serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
 	}
-	for key, counter := range a.counter {
+	for key, counter := range counter {
 		urls = append(urls, strings.Join(
 			[]string{"http://" + serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
 	}

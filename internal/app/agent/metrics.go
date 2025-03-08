@@ -55,7 +55,8 @@ func newMetrics() *metrics {
 	return &metrics{}
 }
 
-func (m *metrics) Poll() {
+// returns poll count
+func (m *metrics) Poll() counter {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	// runtime metrics
@@ -92,6 +93,7 @@ func (m *metrics) Poll() {
 	randomInt64, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
 	m.RandomValue = gauge(randomInt64.Int64())
 	m.PollCount += 1
+	return m.PollCount
 }
 
 func (m *metrics) Read(reader func(*metrics)) {
