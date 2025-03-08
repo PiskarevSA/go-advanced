@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,8 +10,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/caarlos0/env/v6"
 )
 
 const updateInterval = 100 * time.Millisecond
@@ -86,36 +83,7 @@ func (a *Agent) metricsReader(gauge map[string]gauge, counter map[string]counter
 // }
 
 // run agent successfully or return false immediately
-func (a *Agent) Run() bool {
-	var config Config
-	// flags takes less priority according to task description
-	flag.IntVar(&config.PollIntervalSec, "p", 2,
-		"interval between polling metrics, seconds; env: POLL_INTERVAL")
-	flag.IntVar(&config.ReportIntervalSec, "r", 10,
-		"interval between sending metrics to server, seconds; env: REPORT_INTERVAL")
-	flag.StringVar(&config.ServerAddress, "a", "localhost:8080",
-		"server address; env: ADDRESS")
-	flag.CommandLine.Init("", flag.ContinueOnError)
-	err := flag.CommandLine.Parse(os.Args[1:])
-	if err != nil {
-		return false
-	}
-	if flag.NArg() > 0 {
-		log.Println("no positional arguments expected")
-		flag.Usage()
-		return false
-	}
-	log.Printf("config after flags: %+v\n", config)
-
-	// enviromnent takes higher priority according to task description
-	err = env.Parse(&config)
-	if err != nil {
-		log.Println(err)
-		flag.Usage()
-		return false
-	}
-	log.Printf("config after env: %+v\n", config)
-
+func (a *Agent) Run(config *Config) bool {
 	// set a.stopped on program interrupt requested
 	// TODO PR #5
 	// Сейчас горутины не завершаются, если поступил os.Interrupt.

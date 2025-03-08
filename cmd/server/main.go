@@ -13,9 +13,16 @@ func main() {
 		os.Exit(exitCode)
 	}()
 
+	config, err := server.ReadConfig()
+	if err != nil {
+		log.Println(err)
+		exitCode = 1
+		return
+	}
+
 	server := server.NewServer()
 	log.Println("[server] run")
-	success := server.Run()
+	success := server.Run(config)
 	if !success {
 		exitCode = 1
 	}

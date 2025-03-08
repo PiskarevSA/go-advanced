@@ -13,9 +13,16 @@ func main() {
 		os.Exit(exitCode)
 	}()
 
+	config, err := agent.ReadConfig()
+	if err != nil {
+		log.Println(err)
+		exitCode = 1
+		return
+	}
+
 	agent := agent.NewAgent()
 	log.Println("[agent] run")
-	success := agent.Run()
+	success := agent.Run(config)
 	if !success {
 		exitCode = 1
 	}
