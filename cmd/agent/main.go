@@ -15,10 +15,9 @@ func main() {
 
 	agent := agent.NewAgent()
 	log.Println("[agent] run")
-	err := agent.Run()
-	if err != nil {
-		log.Println(err)
+	success := agent.Run()
+	if !success {
 		exitCode = 1
 	}
-	log.Println("[agent] shutdown")
+	log.Println("[agent] gracefull shutdown")
 }

@@ -15,10 +15,9 @@ func main() {
 
 	server := server.NewServer()
 	log.Println("[server] run")
-	err := server.Run()
-	if err != nil {
-		log.Println(err)
+	success := server.Run()
+	if !success {
 		exitCode = 1
 	}
-	log.Println("[server] shutdown")
+	log.Println("[server] gracefull shutdown")
 }

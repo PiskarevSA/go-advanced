@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/caarlos0/env/v6"
 
@@ -26,29 +27,38 @@ func NewServer() *Server {
 //
 // прим. пер.: речь при строки по работе с flag и env
 
-// run server successfully or return error to panic in the main()
-func (s *Server) Run() error {
+// run server successfully or return false immediately
+func (s *Server) Run() bool {
 	var config Config
 	// flags takes less priority according to task description
 	flag.StringVar(&config.ServerAddress, "a", "localhost:8080",
 		"server address; env: ADDRESS")
-	flag.Parse()
+	flag.CommandLine.Init("", flag.ContinueOnError)
+	err := flag.CommandLine.Parse(os.Args[1:])
+	if err != nil {
+		return false
+	}
 	if flag.NArg() > 0 {
+		log.Println("no positional arguments expected")
 		flag.Usage()
-		return nil
+		return false
 	}
 	log.Printf("config after flags: %+v\n", config)
 
 	// enviromnent takes higher priority according to task description
-	err := env.Parse(&config)
+	err = env.Parse(&config)
 	if err != nil {
 		log.Println(err)
 		flag.Usage()
-		return nil
+		return false
 	}
 	log.Printf("config after env: %+v\n", config)
 
 	r := MetricsRouter(s.storage)
 	err = http.ListenAndServe(config.ServerAddress, r)
-	return err
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	return true
 }

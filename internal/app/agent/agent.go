@@ -85,8 +85,8 @@ func (a *Agent) metricsReader(gauge map[string]gauge, counter map[string]counter
 // 	return a.startWorkers(ctx, config)
 // }
 
-// run agent successfully or return error to panic in the main()
-func (a *Agent) Run() error {
+// run agent successfully or return false immediately
+func (a *Agent) Run() bool {
 	var config Config
 	// flags takes less priority according to task description
 	flag.IntVar(&config.PollIntervalSec, "p", 2,
@@ -95,19 +95,24 @@ func (a *Agent) Run() error {
 		"interval between sending metrics to server, seconds; env: REPORT_INTERVAL")
 	flag.StringVar(&config.ServerAddress, "a", "localhost:8080",
 		"server address; env: ADDRESS")
-	flag.Parse()
+	flag.CommandLine.Init("", flag.ContinueOnError)
+	err := flag.CommandLine.Parse(os.Args[1:])
+	if err != nil {
+		return false
+	}
 	if flag.NArg() > 0 {
+		log.Println("no positional arguments expected")
 		flag.Usage()
-		return nil
+		return false
 	}
 	log.Printf("config after flags: %+v\n", config)
 
 	// enviromnent takes higher priority according to task description
-	err := env.Parse(&config)
+	err = env.Parse(&config)
 	if err != nil {
 		log.Println(err)
 		flag.Usage()
-		return nil
+		return false
 	}
 	log.Printf("config after env: %+v\n", config)
 
@@ -228,7 +233,7 @@ func (a *Agent) Run() error {
 		}
 	}()
 	wg.Wait()
-	return nil
+	return true
 }
 
 func (a *Agent) Report(
