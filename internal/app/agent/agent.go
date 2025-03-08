@@ -3,6 +3,7 @@ package agent
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -118,16 +119,16 @@ func (a *Agent) Run() error {
 		flag.Usage()
 		return nil
 	}
-	fmt.Printf("config after flags: %+v\n", config)
+	log.Printf("config after flags: %+v\n", config)
 
 	// enviromnent takes higher priority according to task description
 	err := env.Parse(&config)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		flag.Usage()
 		return nil
 	}
-	fmt.Printf("config after env: %+v\n", config)
+	log.Printf("config after env: %+v\n", config)
 
 	// set a.stopped on program interrupt requested
 	// TODO PR #5
@@ -143,7 +144,7 @@ func (a *Agent) Run() error {
 	//
 	// go func() {
 	// 	<-c
-	// 	fmt.Println("[signal] Interrupt signal received")
+	// 	log.Println("[signal] Interrupt signal received")
 	// 	a.stopped.Store(true)
 	// 	cancel() // Завершаем все горутины
 	// }()
@@ -152,11 +153,11 @@ func (a *Agent) Run() error {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		fmt.Println("[signal] waiting for interrupt signal from OS")
+		log.Println("[signal] waiting for interrupt signal from OS")
 		defer wg.Done()
 		for range c {
 			a.stopped.Store(true)
-			fmt.Println("[signal] Interrupt signal from OS received")
+			log.Println("[signal] Interrupt signal from OS received")
 			break
 		}
 	}()
@@ -193,23 +194,23 @@ func (a *Agent) Run() error {
 	// Пример:
 	//
 	// case <-ctx.Done():
-	// 		fmt.Println("[poller] shutdown")
+	// 		log.Println("[poller] shutdown")
 	// 		return
 
 	// poll metrics periodically
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		fmt.Println("[poller] start ")
+		log.Println("[poller] start ")
 		pollInterval := time.Duration(config.PollIntervalSec) * time.Second
 		for {
 			a.metrics.Poll()
-			fmt.Println("[poller] polled", a.metrics.PollCount)
+			log.Println("[poller] polled", a.metrics.PollCount)
 			a.readyRead.Store(true)
 			// sleep pollInterval or interrupt
 			for t := updateInterval; t < pollInterval; t += updateInterval {
 				if a.stopped.Load() {
-					fmt.Println("[poller] shutdown")
+					log.Println("[poller] shutdown")
 					return
 				}
 				time.Sleep(updateInterval)
@@ -221,10 +222,10 @@ func (a *Agent) Run() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		fmt.Println("[reporter] start")
+		log.Println("[reporter] start")
 		// wait for first poll
 		for !a.readyRead.Load() {
-			fmt.Println("[reporter] waiting for first poll")
+			log.Println("[reporter] waiting for first poll")
 			time.Sleep(time.Microsecond)
 		}
 		reportInterval := time.Duration(config.ReportIntervalSec) * time.Second
@@ -232,11 +233,11 @@ func (a *Agent) Run() error {
 			a.metrics.Read(a.metricsReader())
 			// report
 			a.Report(config.ServerAddress)
-			fmt.Println("[reporter] reported", a.metrics.PollCount)
+			log.Println("[reporter] reported", a.metrics.PollCount)
 			// sleep reportInterval or interrupt
 			for t := updateInterval; t < reportInterval; t += updateInterval {
 				if a.stopped.Load() {
-					fmt.Println("[reporter] shutdown")
+					log.Println("[reporter] shutdown")
 					return
 				}
 				time.Sleep(updateInterval)
@@ -276,7 +277,7 @@ func (a *Agent) Report(serverAddress string) {
 			errorCount += 1
 		}
 		if a.stopped.Load() {
-			fmt.Println("- interrupt reporting")
+			log.Println("- interrupt reporting")
 			return
 		}
 	}
@@ -285,7 +286,7 @@ func (a *Agent) Report(serverAddress string) {
 		if errorCount > 1 {
 			message += fmt.Sprintf(" (and %v more errors)", errorCount-1)
 		}
-		fmt.Println(message)
+		log.Println(message)
 	}
 }
 

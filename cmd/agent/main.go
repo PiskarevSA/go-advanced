@@ -1,19 +1,14 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent"
 )
 
 func main() {
 	agent := agent.NewAgent()
-	// TODO PR #5
-	// Вместо fmt лучше использовать log. Он потокобезопасный и со
-	// свистелками-перделками по типу таймстемпа итд
-	//
-	// поправить надо во всём коде
-	fmt.Println("[agent] run")
+	log.Println("[agent] run")
 	err := agent.Run()
 	if err != nil {
 		// TODO PR #5
@@ -24,5 +19,5 @@ func main() {
 		// поправить надо во всём коде
 		panic(err)
 	}
-	fmt.Println("[agent] shutdown")
+	log.Println("[agent] shutdown")
 }

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -102,7 +103,7 @@ func MainPage(repo Repositories) func(res http.ResponseWriter, req *http.Request
 		// TODO PR #5
 		// Как будто тут надо возвращать ошибку
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}
 }

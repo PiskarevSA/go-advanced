@@ -2,7 +2,7 @@ package server
 
 import (
 	"flag"
-	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/caarlos0/env/v6"
@@ -41,16 +41,16 @@ func (s *Server) Run() error {
 		flag.Usage()
 		return nil
 	}
-	fmt.Printf("config after flags: %+v\n", config)
+	log.Printf("config after flags: %+v\n", config)
 
 	// enviromnent takes higher priority according to task description
 	err := env.Parse(&config)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		flag.Usage()
 		return nil
 	}
-	fmt.Printf("config after env: %+v\n", config)
+	log.Printf("config after env: %+v\n", config)
 
 	r := MetricsRouter(s.storage)
 	err = http.ListenAndServe(config.ServerAddress, r)
