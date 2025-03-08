@@ -2,11 +2,8 @@ package storage
 
 import "sync"
 
-// TODO PR #5
-// Вместо sync.Mutex можно использовать sync.RWMutex и соответственно
-// sync.RLock sync.RUnlock, которые не блокируется при чтении
 type MemStorage struct {
-	mutex sync.Mutex
+	mutex sync.RWMutex
 
 	gauge   map[string]float64
 	counter map[string]int64
@@ -27,8 +24,8 @@ func (m *MemStorage) SetGauge(key string, value float64) {
 }
 
 func (m *MemStorage) Gauge(key string) (value float64, exist bool) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
 
 	value, exist = m.gauge[key]
 	return
@@ -44,16 +41,16 @@ func (m *MemStorage) SetCounter(key string, value int64) {
 }
 
 func (m *MemStorage) Counter(key string) (value int64, exist bool) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
 
 	value, exist = m.counter[key]
 	return
 }
 
 func (m *MemStorage) Dump() (gauge map[string]float64, counter map[string]int64) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
 
 	gauge = make(map[string]float64)
 	for k, v := range m.gauge {
