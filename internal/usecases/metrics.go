@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/PiskarevSA/go-advanced/internal/errors"
 )
@@ -22,6 +23,34 @@ func NewMetrics(repo Repositories) *Metrics {
 	return &Metrics{
 		repo: repo,
 	}
+}
+
+func (m *Metrics) Update(metricType string, metricName string, metricValue string) error {
+	switch metricType {
+	case "gauge":
+		if len(metricName) == 0 {
+			return errors.NewEmptyMetricNameError()
+		}
+		f64, err := strconv.ParseFloat(metricValue, 64)
+		if err != nil {
+			return errors.NewMetricValueIsNotValidError(err)
+		}
+		m.SetGauge(metricName, f64)
+	case "counter":
+		if len(metricName) == 0 {
+			return errors.NewEmptyMetricNameError()
+		}
+		i64, err := strconv.ParseInt(metricValue, 10, 64)
+		if err != nil {
+			return errors.NewMetricValueIsNotValidError(err)
+		}
+		m.SetCounter(metricName, i64)
+	case "":
+		return errors.NewEmptyMetricTypeError()
+	default:
+		return errors.NewInvalidMetricTypeError(metricType)
+	}
+	return nil
 }
 
 func (m *Metrics) SetGauge(key string, value float64) {
@@ -45,6 +74,8 @@ func (m *Metrics) Get(metricType string, metricName string) (
 			return "", errors.NewMetricNameNotFoundError(metricName)
 		}
 		return fmt.Sprint(counter), nil
+	case "":
+		return "", errors.NewEmptyMetricTypeError()
 	default:
 		return "", errors.NewInvalidMetricTypeError(metricType)
 	}

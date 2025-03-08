@@ -5,13 +5,30 @@ import (
 )
 
 // stateless errors
-type ErrEmptyMetricName struct{}
+// .. EmptyMetricTypeError
+type EmptyMetricTypeError struct{}
 
-func (e *ErrEmptyMetricName) Error() string {
+func NewEmptyMetricTypeError() *EmptyMetricTypeError {
+	return &EmptyMetricTypeError{}
+}
+
+func (e EmptyMetricTypeError) Error() string {
+	return "empty metric type"
+}
+
+// .. EmptyMetricNameError
+type EmptyMetricNameError struct{}
+
+func NewEmptyMetricNameError() *EmptyMetricNameError {
+	return &EmptyMetricNameError{}
+}
+
+func (e *EmptyMetricNameError) Error() string {
 	return "empty metric name"
 }
 
-// InvalidMetricTypeError
+// stateful errors
+// .. InvalidMetricTypeError
 type InvalidMetricTypeError struct {
 	MetricType string
 }
@@ -24,7 +41,7 @@ func (e *InvalidMetricTypeError) Error() string {
 	return fmt.Sprintf("invalid metric type: %s", e.MetricType)
 }
 
-// MetricNameNotFoundError
+// .. MetricNameNotFoundError
 type MetricNameNotFoundError struct {
 	MetricName string
 }
@@ -35,4 +52,21 @@ func NewMetricNameNotFoundError(metricName string) *MetricNameNotFoundError {
 
 func (e *MetricNameNotFoundError) Error() string {
 	return fmt.Sprintf("metric name not found: %s", e.MetricName)
+}
+
+// .. MetricValueIsNotValidError
+type MetricValueIsNotValidError struct {
+	error
+}
+
+func NewMetricValueIsNotValidError(error error) *MetricValueIsNotValidError {
+	return &MetricValueIsNotValidError{error: error}
+}
+
+func (e *MetricValueIsNotValidError) Error() string {
+	return fmt.Sprintf("invalid metric value: %s", e.error.Error())
+}
+
+func (e *MetricValueIsNotValidError) Unwrap() error {
+	return e.error
 }

@@ -6,9 +6,8 @@ import (
 )
 
 type Usecase interface {
-	SetGauge(key string, value float64)
+	Update(metricType string, metricName string, metricValue string) error
 	Get(metricType string, metricName string) (value string, err error)
-	SetCounter(key string, value int64)
 	Dump() (gauge map[string]float64, counter map[string]int64)
 }
 

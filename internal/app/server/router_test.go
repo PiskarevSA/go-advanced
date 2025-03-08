@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,22 +12,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mockUpdateParams struct {
+	// input
+	metricType  string
+	metricName  string
+	metricValue string
+	// output
+	error error
+}
+
 type mockGetParams struct {
+	// input
 	metricType string
 	metricName string
-	value      string
-	error      error
+	// output
+	value string
+	error error
 }
 
 type mockUsecase struct {
-	t            *testing.T
-	method       string
-	gaugeKey     string
-	gaugeValue   float64
-	get          mockGetParams
-	counterKey   string
-	counterValue int64
-	called       bool
+	t      *testing.T
+	method string
+	update mockUpdateParams
+	get    mockGetParams
+	called bool
 }
 
 func expectNothing(t *testing.T) *mockUsecase {
@@ -37,12 +46,16 @@ func expectNothing(t *testing.T) *mockUsecase {
 	}
 }
 
-func expectSetGauge(t *testing.T, key string, value float64) *mockUsecase {
+func expectUpdate(t *testing.T, metricType string, metricName string, metricValue string, error error) *mockUsecase {
 	return &mockUsecase{
-		t:          t,
-		method:     "SetGauge",
-		gaugeKey:   key,
-		gaugeValue: value,
+		t:      t,
+		method: "Update",
+		update: mockUpdateParams{
+			metricType:  metricType,
+			metricName:  metricName,
+			metricValue: metricValue,
+			error:       error,
+		},
 	}
 }
 
@@ -61,20 +74,13 @@ func expectGet(t *testing.T, metricType string, metricName string,
 	}
 }
 
-func expectSetCounter(t *testing.T, key string, value int64) *mockUsecase {
-	return &mockUsecase{
-		t:            t,
-		method:       "SetCounter",
-		counterKey:   key,
-		counterValue: value,
-	}
-}
-
-func (m *mockUsecase) SetGauge(key string, value float64) {
-	assert.Equal(m.t, m.method, "SetGauge")
-	assert.Equal(m.t, m.gaugeKey, key)
-	assert.Equal(m.t, m.gaugeValue, value)
+func (m *mockUsecase) Update(metricType string, metricName string, metricValue string) error {
+	assert.Equal(m.t, m.method, "Update")
+	assert.Equal(m.t, m.update.metricType, metricType)
+	assert.Equal(m.t, m.update.metricName, metricName)
+	assert.Equal(m.t, m.update.metricValue, metricValue)
 	m.called = true
+	return m.update.error
 }
 
 func (m *mockUsecase) Get(metricType string, metricName string) (
@@ -85,13 +91,6 @@ func (m *mockUsecase) Get(metricType string, metricName string) (
 	assert.Equal(m.t, m.get.metricName, metricName)
 	m.called = true
 	return m.get.value, m.get.error
-}
-
-func (m *mockUsecase) SetCounter(key string, value int64) {
-	assert.Equal(m.t, m.method, "SetCounter")
-	assert.Equal(m.t, m.counterKey, key)
-	assert.Equal(m.t, m.counterValue, value)
-	m.called = true
 }
 
 func (m *mockUsecase) Dump() (gauge map[string]float64, counter map[string]int64) {
@@ -137,7 +136,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				url:         "/update/gauge/foo/1.23",
-				mockUsecase: expectSetGauge(t, "foo", 1.23),
+				mockUsecase: expectUpdate(t, "gauge", "foo", "1.23", nil),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -150,7 +149,7 @@ func TestMetricsRouter(t *testing.T) {
 			given: given{
 				method:      http.MethodPost,
 				url:         "/update/counter/bar/456",
-				mockUsecase: expectSetCounter(t, "bar", 456),
+				mockUsecase: expectUpdate(t, "counter", "bar", "456", nil),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -187,13 +186,14 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: unexpected metric type",
 			given: given{
-				method:      http.MethodPost,
-				url:         "/update/foo/123/456",
-				mockUsecase: expectNothing(t),
+				method: http.MethodPost,
+				url:    "/update/foo/123/456",
+				mockUsecase: expectUpdate(t, "foo", "123", "456",
+					errors.NewInvalidMetricTypeError("foo")),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "unexpected metric type\n",
+				response:    "invalid metric type: foo\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -224,28 +224,30 @@ func TestMetricsRouter(t *testing.T) {
 			},
 		},
 		{
-			name: "update: incorrect metric value",
+			name: "update: incorrect gauge value",
 			given: given{
-				method:      http.MethodPost,
-				url:         "/update/gauge/foo/qwe",
-				mockUsecase: expectNothing(t),
+				method: http.MethodPost,
+				url:    "/update/gauge/foo/str_value",
+				mockUsecase: expectUpdate(t, "gauge", "foo", "str_value",
+					errors.NewMetricValueIsNotValidError(fmt.Errorf("parsing error"))),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "incorrect metric value\n",
+				response:    "invalid metric value: parsing error\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 		{
-			name: "update: incorrect metric value",
+			name: "update: incorrect counter value",
 			given: given{
-				method:      http.MethodPost,
-				url:         "/update/gauge/foo/value",
-				mockUsecase: expectNothing(t),
+				method: http.MethodPost,
+				url:    "/update/counter/foo/str_value",
+				mockUsecase: expectUpdate(t, "counter", "foo", "str_value",
+					errors.NewMetricValueIsNotValidError(fmt.Errorf("parsing error"))),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "incorrect metric value\n",
+				response:    "invalid metric value: parsing error\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},

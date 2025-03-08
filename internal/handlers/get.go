@@ -21,13 +21,14 @@ func Get(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 		value, err := getter.Get(metricType, metricName)
 		if err != nil {
 			switch err.(type) {
-			case *errors.ErrEmptyMetricName:
+			case *errors.EmptyMetricTypeError:
 				http.NotFound(res, req)
 			case *errors.InvalidMetricTypeError:
 				http.NotFound(res, req)
 			case *errors.MetricNameNotFoundError:
 				http.NotFound(res, req)
 			default:
+				// unexpected error
 				http.Error(res, err.Error(), http.StatusInternalServerError)
 			}
 			return
