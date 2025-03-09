@@ -14,7 +14,7 @@ type (
 )
 
 type metrics struct {
-	mutex   sync.Mutex
+	mutex   sync.RWMutex
 	gauge   map[string]gauge
 	counter map[string]counter
 }
@@ -69,8 +69,8 @@ func (m *metrics) Poll() counter {
 }
 
 func (m *metrics) Get() (counter, map[string]gauge, map[string]counter) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
 
 	gauge := make(map[string]gauge)
 	for k, v := range m.gauge {
