@@ -4,9 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 
+	"github.com/PiskarevSA/go-advanced/internal/logger"
 	"github.com/caarlos0/env/v6"
 )
 
@@ -50,18 +50,18 @@ func (c *Config) ReadEnv() error {
 
 func ReadConfig() (*Config, error) {
 	c := NewConfig()
-	log.Printf("default config: %+v\n", *c)
+	logger.Sugar.Infof("default config: %+v\n", *c)
 	// flags takes less priority according to task description
 	err := c.ParseFlags()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
-	log.Printf("config after flags: %+v\n", *c)
+	logger.Sugar.Infof("config after flags: %+v\n", *c)
 	// enviromnent takes higher priority according to task description
 	err = c.ReadEnv()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
-	log.Printf("config after env: %+v\n", *c)
+	logger.Sugar.Infof("config after env: %+v\n", *c)
 	return c, nil
 }

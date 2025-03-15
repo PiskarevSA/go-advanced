@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +12,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/PiskarevSA/go-advanced/internal/logger"
 )
 
 const updateInterval = 100 * time.Millisecond
@@ -56,7 +57,7 @@ func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
 		<-sigChan
 
 		// Handle shutdown signal (Ctrl+C or SIGTERM)
-		log.Println("Received shutdown signal. Shutting down gracefully...")
+		logger.Plain.Info("Received shutdown signal. Shutting down gracefully...")
 
 		// Cancel the context to notify all goroutines to stop
 		cancel()
@@ -84,18 +85,18 @@ func (a *Agent) startPoller(ctx context.Context, wg *sync.WaitGroup, pollInterva
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		log.Println("[poller] start ")
+		logger.Plain.Info("[poller] start ")
 
 		for {
 			pollCount := a.metrics.Poll()
-			log.Println("[poller] polled", pollCount)
+			logger.Sugar.Infoln("[poller] polled", pollCount)
 			a.readyRead.Store(true)
 			// sleep pollInterval or interrupt
 			for t := time.Duration(0); t < pollInterval; t += updateInterval {
 				select {
 				case <-ctx.Done():
 					// Handle context cancellation (graceful shutdown)
-					log.Printf("[poller] stopping: %v\n", ctx.Err())
+					logger.Sugar.Infof("[poller] stopping: %v\n", ctx.Err())
 					return
 				default:
 					time.Sleep(updateInterval)
@@ -111,23 +112,23 @@ func (a *Agent) startReporter(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		log.Println("[reporter] start")
+		logger.Plain.Info("[reporter] start")
 		// wait for first poll
 		for !a.readyRead.Load() {
-			log.Println("[reporter] waiting for first poll")
+			logger.Plain.Info("[reporter] waiting for first poll")
 			time.Sleep(time.Microsecond)
 		}
 		for {
 			pollCount, gauge, counter := a.metrics.Get()
 			// report
 			a.Report(ctx, serverAddress, gauge, counter)
-			log.Println("[reporter] reported", pollCount)
+			logger.Sugar.Infoln("[reporter] reported", pollCount)
 			// sleep reportInterval or interrupt
 			for t := time.Duration(0); t < reportInterval; t += updateInterval {
 				select {
 				case <-ctx.Done():
 					// Handle context cancellation (graceful shutdown)
-					log.Printf("[reporter] stopping: %v\n", ctx.Err())
+					logger.Sugar.Infof("[reporter] stopping: %v\n", ctx.Err())
 					return
 				default:
 					time.Sleep(updateInterval)
@@ -155,12 +156,12 @@ func (a *Agent) Report(
 		firstError error
 		errorCount int
 	)
-	log.Println("[reporter] start reporting")
+	logger.Plain.Info("[reporter] start reporting")
 	for _, url := range urls {
 		select {
 		case <-ctx.Done():
 			// Handle context cancellation (graceful shutdown)
-			log.Printf("[reporter] interrupt reporting: %v\n", ctx.Err())
+			logger.Sugar.Infof("[reporter] interrupt reporting: %v\n", ctx.Err())
 			return
 		default:
 			// send next metric
@@ -178,7 +179,7 @@ func (a *Agent) Report(
 		if errorCount > 1 {
 			message += fmt.Sprintf(" (and %v more errors)", errorCount-1)
 		}
-		log.Println(message)
+		logger.Plain.Info(message)
 	}
 }
 

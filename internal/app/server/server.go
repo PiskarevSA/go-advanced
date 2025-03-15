@@ -1,9 +1,9 @@
 package server
 
 import (
-	"log"
 	"net/http"
 
+	"github.com/PiskarevSA/go-advanced/internal/logger"
 	"github.com/PiskarevSA/go-advanced/internal/storage"
 	"github.com/PiskarevSA/go-advanced/internal/usecases"
 )
@@ -24,7 +24,7 @@ func (s *Server) Run(config *Config) bool {
 	r := MetricsRouter(usecase)
 	err := http.ListenAndServe(config.ServerAddress, r)
 	if err != nil {
-		log.Println(err)
+		logger.Plain.Error(err.Error())
 		return false
 	}
 	return true

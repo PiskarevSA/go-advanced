@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/PiskarevSA/go-advanced/internal/handlers"
+	"github.com/PiskarevSA/go-advanced/internal/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -12,7 +13,7 @@ type Usecase interface {
 }
 
 func MetricsRouter(usecase Usecase) chi.Router {
-	r := chi.NewRouter()
+	r := chi.NewRouter().With(middleware.Summary)
 	r.Get(`/`, handlers.MainPage(usecase))
 	r.Post(`/update/{type}/{name}/{value}`, handlers.Update(usecase))
 	r.Get(`/value/{type}/{name}`, handlers.Get(usecase))
