@@ -1,10 +1,9 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
-
-	"github.com/PiskarevSA/go-advanced/internal/logger"
 )
 
 type loggingResponseWriter struct {
@@ -33,7 +32,7 @@ func Summary(next http.Handler) http.Handler {
 			responseSize:       0,
 		}
 		next.ServeHTTP(&lw, r)
-		logger.Sugar.Infow("summary:",
+		slog.Info("summary",
 			"uri", r.RequestURI,
 			"method", r.Method,
 			"duration", time.Since(start),

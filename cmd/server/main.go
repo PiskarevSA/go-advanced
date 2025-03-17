@@ -1,10 +1,10 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 
 	"github.com/PiskarevSA/go-advanced/internal/app/server"
-	"github.com/PiskarevSA/go-advanced/internal/logger"
 )
 
 func main() {
@@ -13,21 +13,18 @@ func main() {
 		os.Exit(exitCode)
 	}()
 
-	logger.Init()
-	defer logger.Sync()
-
 	config, err := server.ReadConfig()
 	if err != nil {
-		logger.Plain.Error(err.Error())
+		slog.Error(err.Error())
 		exitCode = 1
 		return
 	}
 
 	server := server.NewServer()
-	logger.Plain.Info("[server] run")
+	slog.Info("[server] run")
 	success := server.Run(config)
 	if !success {
 		exitCode = 1
 	}
-	logger.Plain.Info("[server] gracefull shutdown")
+	slog.Info("[server] gracefull shutdown")
 }

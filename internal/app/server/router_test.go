@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/PiskarevSA/go-advanced/internal/errors"
-	"github.com/PiskarevSA/go-advanced/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -116,9 +115,6 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string) (
 }
 
 func TestMetricsRouter(t *testing.T) {
-	logger.Init()
-	defer logger.Sync()
-
 	type given struct {
 		method      string
 		url         string
