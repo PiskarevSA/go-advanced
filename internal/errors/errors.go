@@ -27,6 +27,28 @@ func (e *EmptyMetricNameError) Error() string {
 	return "empty metric name"
 }
 
+// .. MissingValueError
+type MissingValueError struct{}
+
+func NewMissingValueError() *MissingValueError {
+	return &MissingValueError{}
+}
+
+func (e *MissingValueError) Error() string {
+	return "missing value"
+}
+
+// .. MissingDeltaError
+type MissingDeltaError struct{}
+
+func NewMissingDeltaError() *MissingDeltaError {
+	return &MissingDeltaError{}
+}
+
+func (e *MissingDeltaError) Error() string {
+	return "missing delta"
+}
+
 // stateful errors
 // .. InvalidMetricTypeError
 type InvalidMetricTypeError struct {

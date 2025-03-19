@@ -23,28 +23,27 @@ func (m *MemStorage) SetGauge(key string, value float64) {
 	m.gauge[key] = value
 }
 
-func (m *MemStorage) Gauge(key string) (value float64, exist bool) {
+func (m *MemStorage) Gauge(key string) (value float64, exists bool) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	value, exist = m.gauge[key]
+	value, exists = m.gauge[key]
 	return
 }
 
-func (m *MemStorage) SetCounter(key string, value int64) {
+func (m *MemStorage) IncreaseCounter(key string, delta int64) int64 {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	// TBD m.counter[key] = value
-	// see https://app.pachca.com/chats/19865306?message=445288954
-	m.counter[key] += value
+	m.counter[key] += delta
+	return m.counter[key]
 }
 
-func (m *MemStorage) Counter(key string) (value int64, exist bool) {
+func (m *MemStorage) Counter(key string) (value int64, exists bool) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	value, exist = m.counter[key]
+	value, exists = m.counter[key]
 	return
 }
 

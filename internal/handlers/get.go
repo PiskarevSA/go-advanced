@@ -1,18 +1,73 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 
+	"github.com/PiskarevSA/go-advanced/api"
 	"github.com/PiskarevSA/go-advanced/internal/errors"
 	"github.com/go-chi/chi/v5"
 )
 
 type Getter interface {
-	Get(metricType string, metricName string) (
-		value string, err error)
+	Get(metricType string, metricName string) (value string, err error)
+	IsGauge(metricType string) (bool, error)
+	GetGauge(metricName string) (value *float64, err error)
+	GetCounter(metricName string) (value *int64, err error)
+}
+
+// POST /value
+// - req: "application/json", body: api.Metrics
+// - res: "application/json", body: api.Metrics
+func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
+	return func(res http.ResponseWriter, req *http.Request) {
+		if req.Header.Get("Content-Type") != "application/json" {
+			http.Error(res, "expected Content-Type=application/json",
+				http.StatusBadRequest)
+		}
+		var metrics api.Metrics
+		if err := json.NewDecoder(req.Body).Decode(&metrics); err != nil {
+			http.Error(res, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		metricType := metrics.MType
+		metricName := metrics.ID
+
+		isGauge, err := getter.IsGauge(metricType)
+		if err != nil {
+			http.Error(res, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if isGauge {
+			gauge, err := getter.GetGauge(metricName)
+			if err != nil {
+				handleGetterError(err, res, req)
+			}
+			metrics.Value = gauge
+			metrics.Delta = nil
+		} else {
+			counter, err := getter.GetCounter(metricName)
+			if err != nil {
+				handleGetterError(err, res, req)
+			}
+
+			metrics.Delta = counter
+			metrics.Value = nil
+		}
+
+		// success
+		if err := json.NewEncoder(res).Encode(&metrics); err != nil {
+			http.Error(res, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		res.Header().Set("Content-Type", "application/json")
+	}
 }
 
 // GET /value/{type}/{name}
+// - res: "text/plain; charset=utf-8", body: metric value as string
 func Get(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metricType := chi.URLParam(req, "type")
@@ -20,17 +75,7 @@ func Get(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 
 		value, err := getter.Get(metricType, metricName)
 		if err != nil {
-			switch err.(type) {
-			case *errors.EmptyMetricTypeError:
-				http.NotFound(res, req)
-			case *errors.InvalidMetricTypeError:
-				http.NotFound(res, req)
-			case *errors.MetricNameNotFoundError:
-				http.NotFound(res, req)
-			default:
-				// unexpected error
-				http.Error(res, err.Error(), http.StatusInternalServerError)
-			}
+			handleGetterError(err, res, req)
 			return
 		}
 
@@ -41,5 +86,19 @@ func Get(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 		res.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	}
+}
+
+func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
+	switch err.(type) {
+	case *errors.EmptyMetricTypeError:
+		http.NotFound(res, req)
+	case *errors.InvalidMetricTypeError:
+		http.NotFound(res, req)
+	case *errors.MetricNameNotFoundError:
+		http.NotFound(res, req)
+	default:
+		// unexpected error
+		http.Error(res, err.Error(), http.StatusInternalServerError)
 	}
 }

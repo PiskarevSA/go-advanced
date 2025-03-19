@@ -10,9 +10,9 @@ import (
 
 type Repositories interface {
 	SetGauge(key string, value float64)
-	Gauge(key string) (value float64, exist bool)
-	SetCounter(key string, value int64)
-	Counter(key string) (value int64, exist bool)
+	Gauge(key string) (value float64, exists bool)
+	IncreaseCounter(key string, delta int64) int64
+	Counter(key string) (value int64, exists bool)
 	Dump() (gauge map[string]float64, counter map[string]int64)
 }
 
@@ -93,7 +93,7 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 		if err != nil {
 			return errors.NewMetricValueIsNotValidError(err)
 		}
-		m.repo.SetCounter(metricName, i64)
+		m.repo.IncreaseCounter(metricName, i64)
 	case "":
 		return errors.NewEmptyMetricTypeError()
 	default:
@@ -102,20 +102,57 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 	return nil
 }
 
+func (m *Metrics) IsGauge(metricType string) (bool, error) {
+	switch metricType {
+	case "gauge":
+		return true, nil
+	case "counter":
+		return false, nil
+	case "":
+		return false, errors.NewEmptyMetricTypeError()
+	default:
+		return false, errors.NewInvalidMetricTypeError(metricType)
+	}
+}
+
+func (m *Metrics) UpdateGauge(metricName string, value *float64) error {
+	if len(metricName) == 0 {
+		return errors.NewEmptyMetricNameError()
+	}
+	if value == nil {
+		return errors.NewMissingValueError()
+	}
+	m.repo.SetGauge(metricName, *value)
+
+	return nil
+}
+
+func (m *Metrics) IncreaseCounter(metricName string, delta *int64) (*int64, error) {
+	if len(metricName) == 0 {
+		return nil, errors.NewEmptyMetricNameError()
+	}
+	if delta == nil {
+		return nil, errors.NewMissingDeltaError()
+	}
+	sum := m.repo.IncreaseCounter(metricName, *delta)
+
+	return &sum, nil
+}
+
 func (m *Metrics) Get(metricType string, metricName string) (
 	value string, err error,
 ) {
 	switch metricType {
 	case "gauge":
-		gauge, exist := m.repo.Gauge(metricName)
-		if !exist {
+		gauge, exists := m.repo.Gauge(metricName)
+		if !exists {
 			return "", errors.NewMetricNameNotFoundError(metricName)
 		}
 		return fmt.Sprint(gauge), nil
 
 	case "counter":
-		counter, exist := m.repo.Counter(metricName)
-		if !exist {
+		counter, exists := m.repo.Counter(metricName)
+		if !exists {
 			return "", errors.NewMetricNameNotFoundError(metricName)
 		}
 		return fmt.Sprint(counter), nil
@@ -124,6 +161,22 @@ func (m *Metrics) Get(metricType string, metricName string) (
 	default:
 		return "", errors.NewInvalidMetricTypeError(metricType)
 	}
+}
+
+func (m *Metrics) GetGauge(metricName string) (value *float64, err error) {
+	gauge, exists := m.repo.Gauge(metricName)
+	if !exists {
+		return nil, errors.NewMetricNameNotFoundError(metricName)
+	}
+	return &gauge, nil
+}
+
+func (m *Metrics) GetCounter(metricName string) (value *int64, err error) {
+	counter, exists := m.repo.Counter(metricName)
+	if !exists {
+		return nil, errors.NewMetricNameNotFoundError(metricName)
+	}
+	return &counter, nil
 }
 
 func (m *Metrics) DumpIterator() func() (type_ string, name string, value string, exists bool) {
