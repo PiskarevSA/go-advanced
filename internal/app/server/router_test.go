@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/PiskarevSA/go-advanced/internal/errors"
@@ -154,6 +155,24 @@ func (m *mockUsecase) DumpIterator() func() (type_ string, name string, value st
 	return nil
 }
 
+func testRequestJSON(t *testing.T, ts *httptest.Server, method, path string, body string) (
+	respCode int, respContentType, respBody string,
+) {
+	bodyReader := strings.NewReader(body)
+	req, err := http.NewRequest(method, ts.URL+path, bodyReader)
+	req.Header.Set("Content-Type", "application/json")
+	require.NoError(t, err)
+
+	resp, err := ts.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBodyBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	return resp.StatusCode, resp.Header.Get("Content-Type"), string(respBodyBytes)
+}
+
 func testRequest(t *testing.T, ts *httptest.Server, method, path string) (
 	respCode int, respContentType, respBody string,
 ) {
@@ -168,6 +187,358 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string) (
 	require.NoError(t, err)
 
 	return resp.StatusCode, resp.Header.Get("Content-Type"), string(respBodyBytes)
+}
+
+func TestMetricsRouterJSON(t *testing.T) {
+	type given struct {
+		method      string
+		url         string
+		body        string
+		mockUsecase *mockUsecase
+	}
+	type want struct {
+		code        int
+		response    string
+		contentType string
+	}
+	var f64_1_23 float64 = 1.23
+	var i64_456 int64 = 456
+	tests := []struct {
+		name  string
+		given given
+		want  want
+	}{
+		{
+			name: "update: gauge positive",
+			given: given{
+				method: http.MethodPost,
+				url:    "/update",
+				body:   `{"id":"foo","type":"gauge","value":1.23}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "gauge",
+						// output
+						result: true,
+						err:    nil,
+					}).
+					expectCall(mockUpdateGaugeArgs{
+						// input
+						metricName: "foo",
+						value:      &f64_1_23,
+						// output
+						err: nil,
+					}),
+			},
+			want: want{
+				code:        http.StatusOK,
+				response:    `{"id":"foo","type":"gauge","value":1.23}`,
+				contentType: "application/json",
+			},
+		},
+		{
+			name: "update: counter positive",
+			given: given{
+				method: http.MethodPost,
+				url:    "/update",
+				body:   `{"id":"bar","type":"counter","delta":456}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "counter",
+						// output
+						result: false,
+						err:    nil,
+					}).
+					expectCall(mockIncreaseCounterArgs{
+						// input
+						metricName: "bar",
+						delta:      &i64_456,
+						// output
+						result: &i64_456,
+						err:    nil,
+					}),
+			},
+			want: want{
+				code:        http.StatusOK,
+				response:    `{"id":"bar","type":"counter","delta":456}`,
+				contentType: "application/json",
+			},
+		},
+		{
+			name: "update: invalid method",
+			given: given{
+				method:      http.MethodPatch,
+				url:         "/update",
+				body:        `{"id":"foo","type":"gauge","delta":1.23}`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusMethodNotAllowed,
+				response:    "",
+				contentType: "",
+			},
+		},
+		{
+			name: "update: empty metric type",
+			given: given{
+				method: http.MethodPost,
+				url:    "/update",
+				body:   `{}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "",
+						// output
+						result: false,
+						err:    errors.NewEmptyMetricTypeError(),
+					}),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "empty metric type",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update: unexpected metric type",
+			given: given{
+				method: http.MethodPost,
+				url:    "/update",
+				body:   `{"type":"foo"}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "foo",
+						// output
+						result: false,
+						err:    errors.NewInvalidMetricTypeError("foo"),
+					}),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "invalid metric type: foo",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update: empty metric name",
+			given: given{
+				method: http.MethodPost,
+				url:    "/update",
+				body:   `{"type":"gauge"}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "gauge",
+						// output
+						result: true,
+						err:    nil,
+					}).
+					expectCall(mockUpdateGaugeArgs{
+						// input
+						metricName: "",
+						value:      nil,
+						// output
+						err: errors.NewEmptyMetricNameError(),
+					}),
+			},
+			want: want{
+				code:        http.StatusNotFound,
+				response:    "404 page not found",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update: empty metric value",
+			given: given{
+				method: http.MethodPost,
+				url:    "/update",
+				body:   `{"id":"foo","type":"gauge"}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "gauge",
+						// output
+						result: true,
+						err:    nil,
+					}).
+					expectCall(mockUpdateGaugeArgs{
+						// input
+						metricName: "foo",
+						value:      nil,
+						// output
+						err: errors.NewMissingValueError(),
+					}),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "missing value",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update: incorrect gauge value",
+			given: given{
+				method:      http.MethodPost,
+				url:         "/update",
+				body:        `{"id":"foo","type":"gauge","value":"str_value"}`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "json: cannot unmarshal string into Go struct field Metrics.value of type float64",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update: incorrect counter value",
+			given: given{
+				method:      http.MethodPost,
+				url:         "/update",
+				body:        `{"id":"foo","type":"counter","delta":"str_value"}`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "json: cannot unmarshal string into Go struct field Metrics.delta of type int64",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "value: gauge positive",
+			given: given{
+				method: http.MethodPost,
+				url:    "/value",
+				body:   `{"id":"foo","type":"gauge"}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "gauge",
+						// output
+						result: true,
+						err:    nil,
+					}).expectCall(mockGetGaugeArgs{
+					// input
+					metricName: "foo",
+					// output
+					result: &f64_1_23,
+					err:    nil,
+				}),
+			},
+			want: want{
+				code:        http.StatusOK,
+				response:    `{"id":"foo","type":"gauge","value":1.23}`,
+				contentType: "application/json",
+			},
+		},
+		{
+			name: "value: counter positive",
+			given: given{
+				method: http.MethodPost,
+				url:    "/value",
+				body:   `{"id":"bar","type":"counter"}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "counter",
+						// output
+						result: false,
+						err:    nil,
+					}).expectCall(mockGetCounterArgs{
+					// input
+					metricName: "bar",
+					// output
+					result: &i64_456,
+					err:    nil,
+				}),
+			},
+			want: want{
+				code:        http.StatusOK,
+				response:    `{"id":"bar","type":"counter","delta":456}`,
+				contentType: "application/json",
+			},
+		},
+		{
+			name: "value: invalid method",
+			given: given{
+				method:      http.MethodPatch,
+				url:         "/value",
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusMethodNotAllowed,
+				response:    "",
+				contentType: "",
+			},
+		},
+		{
+			name: "value: unknown metric type",
+			given: given{
+				method: http.MethodPost,
+				url:    "/value",
+				body:   `{"type":"foo"}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "foo",
+						// output
+						result: false,
+						err:    errors.NewInvalidMetricTypeError("foo"),
+					}),
+			},
+			want: want{
+				code:        http.StatusNotFound,
+				response:    "404 page not found",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+
+		{
+			name: "value: unknown metric name",
+			given: given{
+				method: http.MethodPost,
+				url:    "/value",
+				body:   `{"id":"foo","type":"gauge"}`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockIsGaugeArgs{
+						// input
+						metricType: "gauge",
+						// output
+						result: true,
+						err:    nil,
+					}).
+					expectCall(mockGetGaugeArgs{
+						// input
+						metricName: "foo",
+						// output
+						result: nil,
+						err:    errors.NewMetricNameNotFoundError("foo"),
+					}),
+			},
+			want: want{
+				code:        http.StatusNotFound,
+				response:    "404 page not found",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(MetricsRouter(tt.given.mockUsecase))
+			defer ts.Close()
+
+			respCode, respContentType, respBody := testRequestJSON(
+				t, ts, tt.given.method, tt.given.url, tt.given.body)
+			// проверяем параметры ответа
+			assert.Equal(t, tt.want.code, respCode)
+			assert.Equal(t, tt.want.contentType, respContentType)
+			assert.Equal(t, tt.want.response, strings.TrimSpace(respBody))
+			assert.Equal(t, len(tt.given.mockUsecase.mockCallParams),
+				tt.given.mockUsecase.callIndex)
+		})
+	}
 }
 
 func TestMetricsRouter(t *testing.T) {

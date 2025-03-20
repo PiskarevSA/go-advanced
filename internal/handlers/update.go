@@ -52,11 +52,11 @@ func UpdateJSON(updater Updater) func(res http.ResponseWriter, req *http.Request
 			}
 		}
 		// success
+		res.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(res).Encode(&metrics); err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		res.Header().Set("Content-Type", "application/json")
 	}
 }
 

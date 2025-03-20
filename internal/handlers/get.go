@@ -36,7 +36,7 @@ func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 
 		isGauge, err := getter.IsGauge(metricType)
 		if err != nil {
-			http.Error(res, err.Error(), http.StatusBadRequest)
+			handleGetterError(err, res, req)
 			return
 		}
 
@@ -44,6 +44,7 @@ func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 			gauge, err := getter.GetGauge(metricName)
 			if err != nil {
 				handleGetterError(err, res, req)
+				return
 			}
 			metrics.Value = gauge
 			metrics.Delta = nil
@@ -51,6 +52,7 @@ func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 			counter, err := getter.GetCounter(metricName)
 			if err != nil {
 				handleGetterError(err, res, req)
+				return
 			}
 
 			metrics.Delta = counter
@@ -58,11 +60,11 @@ func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 		}
 
 		// success
+		res.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(res).Encode(&metrics); err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		res.Header().Set("Content-Type", "application/json")
 	}
 }
 
