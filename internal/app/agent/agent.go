@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -13,6 +15,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/PiskarevSA/go-advanced/api"
 )
 
 const updateInterval = 100 * time.Millisecond
@@ -142,21 +146,47 @@ func (a *Agent) startReporter(
 func (a *Agent) Report(
 	ctx context.Context, serverAddress string, gauge map[string]gauge, counter map[string]counter,
 ) {
-	urls := make([]string, 0, len(gauge)+len(counter))
-	for key, gauge := range gauge {
-		urls = append(urls, strings.Join(
-			[]string{"http://" + serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
-	}
-	for key, counter := range counter {
-		urls = append(urls, strings.Join(
-			[]string{"http://" + serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
-	}
+	url := strings.Join([]string{"http://" + serverAddress, "update"}, "/")
+	bodies := make([][]byte, 0, len(gauge)+len(counter))
 	var (
 		firstError error
 		errorCount int
 	)
+
+	appendBodyFromMetricAsJson := func(m api.Metrics) {
+		body, err := json.Marshal(m)
+		if err != nil {
+			if errorCount == 0 {
+				firstError = err
+			}
+			errorCount += 1
+			return
+		}
+		bodies = append(bodies, body)
+	}
+
+	for key, gauge := range gauge {
+		value := float64(gauge)
+		m := api.Metrics{
+			ID:    key,
+			MType: "gauge",
+			Value: &value,
+		}
+		appendBodyFromMetricAsJson(m)
+	}
+
+	for key, counter := range counter {
+		delta := int64(counter)
+		m := api.Metrics{
+			ID:    key,
+			MType: "counter",
+			Delta: &delta,
+		}
+		appendBodyFromMetricAsJson(m)
+	}
+
 	slog.Info("[reporter] start reporting")
-	for _, url := range urls {
+	for _, body := range bodies {
 		select {
 		case <-ctx.Done():
 			// Handle context cancellation (graceful shutdown)
@@ -164,7 +194,7 @@ func (a *Agent) Report(
 			return
 		default:
 			// send next metric
-			err := a.ReportToURL(url)
+			err := a.ReportToURL(url, body)
 			if err != nil {
 				if errorCount == 0 {
 					firstError = err
@@ -178,8 +208,9 @@ func (a *Agent) Report(
 	}
 }
 
-func (a *Agent) ReportToURL(url string) error {
-	res, err := a.httpClient.Post(url, "text/plain", http.NoBody)
+func (a *Agent) ReportToURL(url string, body []byte) error {
+	res, err := a.httpClient.Post(
+		url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
