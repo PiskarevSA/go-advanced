@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -146,7 +145,7 @@ func (a *Agent) startReporter(
 func (a *Agent) Report(
 	ctx context.Context, serverAddress string, gauge map[string]gauge, counter map[string]counter,
 ) {
-	url := strings.Join([]string{"http://" + serverAddress, "update"}, "/")
+	url := "http://" + serverAddress + "/update/"
 	bodies := make([][]byte, 0, len(gauge)+len(counter))
 	var (
 		firstError error

@@ -212,7 +212,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "update: gauge positive",
 			given: given{
 				method: http.MethodPost,
-				url:    "/update",
+				url:    "/update/",
 				body:   `{"id":"foo","type":"gauge","value":1.23}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -240,7 +240,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "update: counter positive",
 			given: given{
 				method: http.MethodPost,
-				url:    "/update",
+				url:    "/update/",
 				body:   `{"id":"bar","type":"counter","delta":456}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -269,7 +269,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "update: invalid method",
 			given: given{
 				method:      http.MethodPatch,
-				url:         "/update",
+				url:         "/update/",
 				body:        `{"id":"foo","type":"gauge","delta":1.23}`,
 				mockUsecase: newMockUsecase(t),
 			},
@@ -283,7 +283,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "update: empty metric type",
 			given: given{
 				method: http.MethodPost,
-				url:    "/update",
+				url:    "/update/",
 				body:   `{}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -304,7 +304,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "update: unexpected metric type",
 			given: given{
 				method: http.MethodPost,
-				url:    "/update",
+				url:    "/update/",
 				body:   `{"type":"foo"}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -325,7 +325,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "update: empty metric name",
 			given: given{
 				method: http.MethodPost,
-				url:    "/update",
+				url:    "/update/",
 				body:   `{"type":"gauge"}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -353,7 +353,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "update: empty metric value",
 			given: given{
 				method: http.MethodPost,
-				url:    "/update",
+				url:    "/update/",
 				body:   `{"id":"foo","type":"gauge"}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -381,7 +381,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "update: incorrect gauge value",
 			given: given{
 				method:      http.MethodPost,
-				url:         "/update",
+				url:         "/update/",
 				body:        `{"id":"foo","type":"gauge","value":"str_value"}`,
 				mockUsecase: newMockUsecase(t),
 			},
@@ -395,7 +395,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "update: incorrect counter value",
 			given: given{
 				method:      http.MethodPost,
-				url:         "/update",
+				url:         "/update/",
 				body:        `{"id":"foo","type":"counter","delta":"str_value"}`,
 				mockUsecase: newMockUsecase(t),
 			},
@@ -409,7 +409,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "value: gauge positive",
 			given: given{
 				method: http.MethodPost,
-				url:    "/value",
+				url:    "/value/",
 				body:   `{"id":"foo","type":"gauge"}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -436,7 +436,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "value: counter positive",
 			given: given{
 				method: http.MethodPost,
-				url:    "/value",
+				url:    "/value/",
 				body:   `{"id":"bar","type":"counter"}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -463,7 +463,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "value: invalid method",
 			given: given{
 				method:      http.MethodPatch,
-				url:         "/value",
+				url:         "/value/",
 				mockUsecase: newMockUsecase(t),
 			},
 			want: want{
@@ -476,7 +476,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "value: unknown metric type",
 			given: given{
 				method: http.MethodPost,
-				url:    "/value",
+				url:    "/value/",
 				body:   `{"type":"foo"}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -498,7 +498,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			name: "value: unknown metric name",
 			given: given{
 				method: http.MethodPost,
-				url:    "/value",
+				url:    "/value/",
 				body:   `{"id":"foo","type":"gauge"}`,
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockIsGaugeArgs{
@@ -610,19 +610,6 @@ func TestMetricsRouter(t *testing.T) {
 				code:        http.StatusMethodNotAllowed,
 				response:    "",
 				contentType: "",
-			},
-		},
-		{
-			name: "update: empty metric type",
-			given: given{
-				method:      http.MethodPost,
-				url:         "/update/",
-				mockUsecase: newMockUsecase(t),
-			},
-			want: want{
-				code:        http.StatusNotFound,
-				response:    "404 page not found\n",
-				contentType: "text/plain; charset=utf-8",
 			},
 		},
 		{
