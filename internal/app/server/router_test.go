@@ -201,7 +201,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 		response    string
 		contentType string
 	}
-	var f64_1_23 float64 = 1.23
+	f64_1_23 := 1.23
 	var i64_456 int64 = 456
 	tests := []struct {
 		name  string
