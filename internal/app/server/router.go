@@ -1,8 +1,9 @@
 package server
 
 import (
+	"net/http"
+
 	"github.com/PiskarevSA/go-advanced/internal/handlers"
-	"github.com/PiskarevSA/go-advanced/internal/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -17,8 +18,8 @@ type Usecase interface {
 	DumpIterator() func() (type_ string, name string, value string, exists bool)
 }
 
-func MetricsRouter(usecase Usecase) chi.Router {
-	r := chi.NewRouter().With(middleware.Summary, middleware.Encoding)
+func MetricsRouter(usecase Usecase, middlewares ...func(http.Handler) http.Handler) chi.Router {
+	r := chi.NewRouter().With(middlewares...)
 	r.Get(`/`, handlers.MainPage(usecase))
 	r.Post(`/update/`, handlers.UpdateJSON(usecase))
 	r.Post(`/update/{type}/{name}/{value}`, handlers.Update(usecase))

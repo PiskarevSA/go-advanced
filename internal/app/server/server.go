@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/PiskarevSA/go-advanced/internal/middleware"
 	"github.com/PiskarevSA/go-advanced/internal/storage"
 	"github.com/PiskarevSA/go-advanced/internal/usecases"
 )
@@ -21,7 +22,7 @@ func NewServer() *Server {
 // run server successfully or return false immediately
 func (s *Server) Run(config *Config) bool {
 	usecase := usecases.NewMetrics(s.storage)
-	r := MetricsRouter(usecase)
+	r := MetricsRouter(usecase, middleware.Summary, middleware.Encoding)
 	err := http.ListenAndServe(config.ServerAddress, r)
 	if err != nil {
 		slog.Error(err.Error())
