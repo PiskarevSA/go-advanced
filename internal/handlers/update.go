@@ -24,6 +24,7 @@ func UpdateJSON(updater Updater) func(res http.ResponseWriter, req *http.Request
 		if req.Header.Get("Content-Type") != "application/json" {
 			http.Error(res, "expected Content-Type=application/json",
 				http.StatusBadRequest)
+			return
 		}
 		var metrics api.Metrics
 		if err := json.NewDecoder(req.Body).Decode(&metrics); err != nil {

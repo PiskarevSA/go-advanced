@@ -18,7 +18,7 @@ type Usecase interface {
 }
 
 func MetricsRouter(usecase Usecase) chi.Router {
-	r := chi.NewRouter().With(middleware.Summary)
+	r := chi.NewRouter().With(middleware.Summary, middleware.Encoding)
 	r.Get(`/`, handlers.MainPage(usecase))
 	r.Post(`/update/`, handlers.UpdateJSON(usecase))
 	r.Post(`/update/{type}/{name}/{value}`, handlers.Update(usecase))

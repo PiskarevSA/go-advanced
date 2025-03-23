@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -208,10 +209,26 @@ func (a *Agent) Report(
 }
 
 func (a *Agent) ReportToURL(url string, body []byte) error {
-	res, err := a.httpClient.Post(
-		url, "application/json", bytes.NewReader(body))
+	bodyReader := bytes.NewBuffer(nil)
+	gzipWriter := gzip.NewWriter(bodyReader)
+	// write compressed body to buffer
+	if _, err := gzipWriter.Write(body); err != nil {
+		return fmt.Errorf("gzipWriter.Write(): %w", err)
+	}
+	// flush any unwritten data to buffer
+	if err := gzipWriter.Close(); err != nil {
+		return fmt.Errorf("gzipWriter.Close(): %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bodyReader)
 	if err != nil {
-		return err
+		return fmt.Errorf("http.NewRequest(): %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	res, err := a.httpClient.Do(req) // closes compressedBodyReader
+	if err != nil {
+		return fmt.Errorf("httpClient.Do(): %w", err)
 	}
 	defer res.Body.Close()
 
@@ -220,7 +237,7 @@ func (a *Agent) ReportToURL(url string, body []byte) error {
 	// not read to completion and closed.
 	_, err = io.Copy(io.Discard, res.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("io.Copy(): %w", err)
 	}
 
 	if res.StatusCode != http.StatusOK {

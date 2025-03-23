@@ -48,10 +48,10 @@ func MainPage(dumper Dumper) func(res http.ResponseWriter, req *http.Request) {
 		doc := fmt.Sprintf(docTemplate, rows)
 		fmt.Println(doc)
 
+		res.Header().Set("Content-Type", "text/html")
 		_, err := res.Write([]byte(doc))
 		if err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 		}
-		res.Header().Set("Content-Type", "text/html")
 	}
 }
