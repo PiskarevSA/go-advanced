@@ -31,6 +31,9 @@ func (c *compressibleWriter) Write(p []byte) (int, error) {
 		compress := slices.Contains(
 			[]string{"application/json", "text/html"},
 			c.ResponseWriter.Header().Get("Content-Type"))
+		if compress {
+			c.ResponseWriter.Header().Set("Content-Encoding", "gzip")
+		}
 		c.compress = &compress
 	}
 	if *c.compress {
@@ -89,7 +92,6 @@ func Encoding(next http.Handler) http.Handler {
 		var cw *compressibleWriter
 		if supportsGzip {
 			// оборачиваем оригинальный http.ResponseWriter новым с поддержкой сжатия
-			w.Header().Set("Content-Encoding", "gzip")
 			cw = newCompressWriter(w)
 			// меняем оригинальный http.ResponseWriter на новый
 			ow = cw
