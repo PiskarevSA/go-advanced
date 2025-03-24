@@ -20,9 +20,9 @@ func main() {
 		return
 	}
 
-	server := server.NewServer()
+	server := server.NewServer(config)
 	slog.Info("[main] running server")
-	success := server.Run(config)
+	success := server.Run()
 	if !success {
 		exitCode = 2
 	}

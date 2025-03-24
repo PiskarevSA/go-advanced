@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 
@@ -14,6 +15,8 @@ type Repositories interface {
 	IncreaseCounter(key string, delta int64) int64
 	Counter(key string) (value int64, exists bool)
 	Dump() (gauge map[string]float64, counter map[string]int64)
+	Load(r io.Reader) error
+	Store(w io.Writer) error
 }
 
 type DumpRow struct {
@@ -65,7 +68,8 @@ func (d *IteratableDump) NextMetric() (
 }
 
 type Metrics struct {
-	repo Repositories
+	repo     Repositories
+	OnChange func()
 }
 
 func NewMetrics(repo Repositories) *Metrics {
@@ -85,6 +89,9 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 			return errors.NewMetricValueIsNotValidError(err)
 		}
 		m.repo.SetGauge(metricName, f64)
+		if m.OnChange != nil {
+			m.OnChange()
+		}
 	case "counter":
 		if len(metricName) == 0 {
 			return errors.NewEmptyMetricNameError()
@@ -94,6 +101,9 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 			return errors.NewMetricValueIsNotValidError(err)
 		}
 		m.repo.IncreaseCounter(metricName, i64)
+		if m.OnChange != nil {
+			m.OnChange()
+		}
 	case "":
 		return errors.NewEmptyMetricTypeError()
 	default:
@@ -123,6 +133,9 @@ func (m *Metrics) UpdateGauge(metricName string, value *float64) error {
 		return errors.NewMissingValueError()
 	}
 	m.repo.SetGauge(metricName, *value)
+	if m.OnChange != nil {
+		m.OnChange()
+	}
 
 	return nil
 }
@@ -135,6 +148,9 @@ func (m *Metrics) IncreaseCounter(metricName string, delta *int64) (*int64, erro
 		return nil, errors.NewMissingDeltaError()
 	}
 	sum := m.repo.IncreaseCounter(metricName, *delta)
+	if m.OnChange != nil {
+		m.OnChange()
+	}
 
 	return &sum, nil
 }
@@ -184,4 +200,18 @@ func (m *Metrics) DumpIterator() func() (type_ string, name string, value string
 
 	iteratableDump := NewIteratableDump(gauge, counter)
 	return iteratableDump.NextMetric
+}
+
+func (m *Metrics) LoadMetrics(r io.Reader) error {
+	if err := m.repo.Load(r); err != nil {
+		return fmt.Errorf("load metrics: %w", err)
+	}
+	return nil
+}
+
+func (m *Metrics) StoreMetrics(w io.Writer) error {
+	if err := m.repo.Store(w); err != nil {
+		return fmt.Errorf("store metrics: %w", err)
+	}
+	return nil
 }

@@ -55,11 +55,11 @@ func TestMemStorage_SetGauge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &MemStorage{
-				gauge:   tt.given.gauge,
-				counter: map[string]int64{},
+				GaugeMap:   tt.given.gauge,
+				CounterMap: map[string]int64{},
 			}
 			m.SetGauge(tt.given.argKey, tt.given.argValue)
-			assert.Equal(t, tt.want.gauge, m.gauge)
+			assert.Equal(t, tt.want.gauge, m.GaugeMap)
 		})
 	}
 }
@@ -110,8 +110,8 @@ func TestMemStorage_Gauge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &MemStorage{
-				gauge:   tt.given.gauge,
-				counter: map[string]int64{},
+				GaugeMap:   tt.given.gauge,
+				CounterMap: map[string]int64{},
 			}
 			value, exists := m.Gauge(tt.given.argKey)
 			assert.Equal(t, tt.want.argValue, value)
@@ -176,11 +176,11 @@ func TestMemStorage_IncreaseCounter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &MemStorage{
-				gauge:   map[string]float64{},
-				counter: tt.given.counter,
+				GaugeMap:   map[string]float64{},
+				CounterMap: tt.given.counter,
 			}
 			value := m.IncreaseCounter(tt.given.argKey, tt.given.argDelta)
-			assert.Equal(t, tt.want.counter, m.counter)
+			assert.Equal(t, tt.want.counter, m.CounterMap)
 			assert.Equal(t, tt.want.argValue, value)
 		})
 	}
@@ -232,8 +232,8 @@ func TestMemStorage_Counter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &MemStorage{
-				gauge:   map[string]float64{},
-				counter: tt.given.counter,
+				GaugeMap:   map[string]float64{},
+				CounterMap: tt.given.counter,
 			}
 			value, exists := m.Counter(tt.given.argKey)
 			assert.Equal(t, tt.want.argValue, value)

@@ -102,7 +102,7 @@ func (a *Agent) startPoller(ctx context.Context, wg *sync.WaitGroup, pollInterva
 				select {
 				case <-ctx.Done():
 					// Handle context cancellation (graceful shutdown)
-					slog.Info("[poller] stopping", "error", ctx.Err())
+					slog.Info("[poller] stopping", "reason", ctx.Err())
 					return
 				default:
 					time.Sleep(updateInterval)
@@ -134,7 +134,7 @@ func (a *Agent) startReporter(
 				select {
 				case <-ctx.Done():
 					// Handle context cancellation (graceful shutdown)
-					slog.Info("[reporter] stopping", "error", ctx.Err())
+					slog.Info("[reporter] stopping", "reason", ctx.Err())
 					return
 				default:
 					time.Sleep(updateInterval)
