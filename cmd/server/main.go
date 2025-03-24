@@ -21,10 +21,10 @@ func main() {
 	}
 
 	server := server.NewServer()
-	slog.Info("[server] run")
+	slog.Info("[main] running server")
 	success := server.Run(config)
 	if !success {
-		exitCode = 1
+		exitCode = 2
 	}
-	slog.Info("[server] gracefull shutdown")
+	slog.Info("[main] gracefull shutdown complete")
 }

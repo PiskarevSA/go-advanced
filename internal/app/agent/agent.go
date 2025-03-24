@@ -56,14 +56,17 @@ func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
+		slog.Info("[signal handler] Waiting for an interrupt signal...")
+
 		// Wait for an interrupt signal to initiate graceful shutdown
 		<-sigChan
 
 		// Handle shutdown signal (Ctrl+C or SIGTERM)
-		slog.Info("Received shutdown signal. Shutting down gracefully...")
+		slog.Info("[signal handler] Received shutdown signal")
 
 		// Cancel the context to notify all goroutines to stop
 		cancel()
+		slog.Info("[signal handler] Cancel func called")
 	}()
 	return ctx, cancel
 }

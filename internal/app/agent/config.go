@@ -60,18 +60,18 @@ func (c *Config) ReadEnv() error {
 
 func ReadConfig() (*Config, error) {
 	c := NewConfig()
-	slog.Info("default", "config", *c)
+	slog.Info("[main] default", "config", *c)
 	// flags takes less priority according to task description
 	err := c.ParseFlags()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
-	slog.Info("after flags", "config", *c)
+	slog.Info("[main] after flags", "config", *c)
 	// enviromnent takes higher priority according to task description
 	err = c.ReadEnv()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
-	slog.Info("after env", "config", *c)
+	slog.Info("[main] after env", "config", *c)
 	return c, nil
 }

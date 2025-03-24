@@ -21,10 +21,10 @@ func main() {
 	}
 
 	agent := agent.NewAgent()
-	slog.Info("[agent] run")
+	slog.Info("[main] running agent")
 	success := agent.Run(config)
 	if !success {
-		exitCode = 1
+		exitCode = 2
 	}
-	slog.Info("[agent] gracefull shutdown")
+	slog.Info("[main] gracefull shutdown complete")
 }
