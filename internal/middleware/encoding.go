@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"compress/gzip"
-	"fmt"
 	"io"
 	"net/http"
 	"slices"
@@ -21,7 +20,7 @@ type compressibleWriter struct {
 func newCompressWriter(w http.ResponseWriter) *compressibleWriter {
 	return &compressibleWriter{
 		ResponseWriter: w,
-		zw:             gzip.NewWriter(w),
+		zw:             nil,
 		compress:       nil,
 	}
 }
@@ -32,6 +31,7 @@ func (c *compressibleWriter) Write(p []byte) (int, error) {
 			[]string{"application/json", "text/html"},
 			c.ResponseWriter.Header().Get("Content-Type"))
 		if compress {
+			c.zw = gzip.NewWriter(c.ResponseWriter)
 			c.ResponseWriter.Header().Set("Content-Encoding", "gzip")
 		}
 		c.compress = &compress
@@ -45,7 +45,10 @@ func (c *compressibleWriter) Write(p []byte) (int, error) {
 
 // Close закрывает gzip.Writer и досылает все данные из буфера.
 func (c *compressibleWriter) Close() error {
-	return c.zw.Close()
+	if c.zw != nil {
+		return c.zw.Close()
+	}
+	return nil
 }
 
 // compressReader реализует интерфейс io.ReadCloser и позволяет прозрачно для сервера
@@ -69,7 +72,6 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 
 func (c compressReader) Read(p []byte) (n int, err error) {
 	n, err = c.zr.Read(p)
-	fmt.Println(string(p))
 	return
 }
 
