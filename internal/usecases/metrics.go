@@ -9,7 +9,7 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/entities"
 )
 
-type Repositories interface {
+type Storage interface {
 	SetGauge(key string, value float64)
 	Gauge(key string) (value float64, exists bool)
 	IncreaseCounter(key string, delta int64) int64
@@ -69,13 +69,13 @@ func (d *IteratableDump) NextMetric() (
 
 // Metrics contains use cases, related to metrics creating, reading and updating
 type Metrics struct {
-	repo     Repositories
+	storage  Storage
 	OnChange func()
 }
 
-func NewMetrics(repo Repositories) *Metrics {
+func NewMetrics(storage Storage) *Metrics {
 	return &Metrics{
-		repo: repo,
+		storage: storage,
 	}
 }
 
@@ -85,11 +85,11 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 		if len(metricName) == 0 {
 			return entities.ErrEmptyMetricName
 		}
-		f64, err := strconv.ParseFloat(metricValue, 64)
+		asFloat64, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
 			return entities.NewMetricValueIsNotValidError(err)
 		}
-		m.repo.SetGauge(metricName, f64)
+		m.storage.SetGauge(metricName, asFloat64)
 		if m.OnChange != nil {
 			m.OnChange()
 		}
@@ -97,11 +97,11 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 		if len(metricName) == 0 {
 			return entities.ErrEmptyMetricName
 		}
-		i64, err := strconv.ParseInt(metricValue, 10, 64)
+		asInt64, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
 			return entities.NewMetricValueIsNotValidError(err)
 		}
-		m.repo.IncreaseCounter(metricName, i64)
+		m.storage.IncreaseCounter(metricName, asInt64)
 		if m.OnChange != nil {
 			m.OnChange()
 		}
@@ -129,7 +129,7 @@ func (m *Metrics) UpdateGauge(metricName string, value *float64) error {
 	if value == nil {
 		return entities.ErrMissingValue
 	}
-	m.repo.SetGauge(metricName, *value)
+	m.storage.SetGauge(metricName, *value)
 	if m.OnChange != nil {
 		m.OnChange()
 	}
@@ -144,7 +144,7 @@ func (m *Metrics) IncreaseCounter(metricName string, delta *int64) (*int64, erro
 	if delta == nil {
 		return nil, entities.ErrMissingDelta
 	}
-	sum := m.repo.IncreaseCounter(metricName, *delta)
+	sum := m.storage.IncreaseCounter(metricName, *delta)
 	if m.OnChange != nil {
 		m.OnChange()
 	}
@@ -157,14 +157,14 @@ func (m *Metrics) Get(metricType string, metricName string) (
 ) {
 	switch metricType {
 	case "gauge":
-		gauge, exists := m.repo.Gauge(metricName)
+		gauge, exists := m.storage.Gauge(metricName)
 		if !exists {
 			return "", entities.NewMetricNameNotFoundError(metricName)
 		}
 		return fmt.Sprint(gauge), nil
 
 	case "counter":
-		counter, exists := m.repo.Counter(metricName)
+		counter, exists := m.storage.Counter(metricName)
 		if !exists {
 			return "", entities.NewMetricNameNotFoundError(metricName)
 		}
@@ -175,7 +175,7 @@ func (m *Metrics) Get(metricType string, metricName string) (
 }
 
 func (m *Metrics) GetGauge(metricName string) (value *float64, err error) {
-	gauge, exists := m.repo.Gauge(metricName)
+	gauge, exists := m.storage.Gauge(metricName)
 	if !exists {
 		return nil, entities.NewMetricNameNotFoundError(metricName)
 	}
@@ -183,7 +183,7 @@ func (m *Metrics) GetGauge(metricName string) (value *float64, err error) {
 }
 
 func (m *Metrics) GetCounter(metricName string) (value *int64, err error) {
-	counter, exists := m.repo.Counter(metricName)
+	counter, exists := m.storage.Counter(metricName)
 	if !exists {
 		return nil, entities.NewMetricNameNotFoundError(metricName)
 	}
@@ -191,21 +191,21 @@ func (m *Metrics) GetCounter(metricName string) (value *int64, err error) {
 }
 
 func (m *Metrics) DumpIterator() func() (type_ string, name string, value string, exists bool) {
-	gauge, counter := m.repo.Dump()
+	gauge, counter := m.storage.Dump()
 
 	iteratableDump := NewIteratableDump(gauge, counter)
 	return iteratableDump.NextMetric
 }
 
 func (m *Metrics) LoadMetrics(r io.Reader) error {
-	if err := m.repo.Load(r); err != nil {
+	if err := m.storage.Load(r); err != nil {
 		return fmt.Errorf("load metrics: %w", err)
 	}
 	return nil
 }
 
 func (m *Metrics) StoreMetrics(w io.Writer) error {
-	if err := m.repo.Store(w); err != nil {
+	if err := m.storage.Store(w); err != nil {
 		return fmt.Errorf("store metrics: %w", err)
 	}
 	return nil
