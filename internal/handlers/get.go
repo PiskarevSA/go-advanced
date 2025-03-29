@@ -18,22 +18,22 @@ type Getter interface {
 }
 
 // POST /value
-// - req: "application/json", body: api.Metrics
-// - res: "application/json", body: api.Metrics
+// - req: "application/json", body: api.Metric
+// - res: "application/json", body: api.Metric
 func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Content-Type") != "application/json" {
 			http.Error(res, "expected Content-Type=application/json",
 				http.StatusBadRequest)
 		}
-		var metrics api.Metrics
-		if err := json.NewDecoder(req.Body).Decode(&metrics); err != nil {
+		var metric api.Metric
+		if err := json.NewDecoder(req.Body).Decode(&metric); err != nil {
 			http.Error(res, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		metricType := metrics.MType
-		metricName := metrics.ID
+		metricType := metric.MType
+		metricName := metric.ID
 
 		isGauge, err := getter.IsGauge(metricType)
 		if err != nil {
@@ -47,8 +47,8 @@ func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 				handleGetterError(err, res, req)
 				return
 			}
-			metrics.Value = gauge
-			metrics.Delta = nil
+			metric.Value = gauge
+			metric.Delta = nil
 		} else {
 			counter, err := getter.GetCounter(metricName)
 			if err != nil {
@@ -56,13 +56,13 @@ func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			metrics.Delta = counter
-			metrics.Value = nil
+			metric.Delta = counter
+			metric.Value = nil
 		}
 
 		// success
 		res.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(res).Encode(&metrics); err != nil {
+		if err := json.NewEncoder(res).Encode(&metric); err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return
 		}

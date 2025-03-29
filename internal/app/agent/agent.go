@@ -156,7 +156,7 @@ func (a *Agent) Report(
 		errorCount int
 	)
 
-	appendBodyFromMetricAsJSON := func(m api.Metrics) {
+	appendBodyFromMetricAsJSON := func(m api.Metric) {
 		body, err := json.Marshal(m)
 		if err != nil {
 			if errorCount == 0 {
@@ -170,7 +170,7 @@ func (a *Agent) Report(
 
 	for key, gauge := range gauge {
 		value := float64(gauge)
-		m := api.Metrics{
+		m := api.Metric{
 			ID:    key,
 			MType: "gauge",
 			Value: &value,
@@ -180,7 +180,7 @@ func (a *Agent) Report(
 
 	for key, counter := range counter {
 		delta := int64(counter)
-		m := api.Metrics{
+		m := api.Metric{
 			ID:    key,
 			MType: "counter",
 			Delta: &delta,

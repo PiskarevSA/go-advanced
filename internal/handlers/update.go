@@ -18,8 +18,8 @@ type Updater interface {
 }
 
 // POST /update
-// - req: "application/json", body: api.Metrics
-// - res: "application/json", body: api.Metrics
+// - req: "application/json", body: api.Metric
+// - res: "application/json", body: api.Metric
 func UpdateJSON(updater Updater) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Content-Type") != "application/json" {
@@ -27,13 +27,13 @@ func UpdateJSON(updater Updater) func(res http.ResponseWriter, req *http.Request
 				http.StatusBadRequest)
 			return
 		}
-		var metrics api.Metrics
-		if err := json.NewDecoder(req.Body).Decode(&metrics); err != nil {
+		var metric api.Metric
+		if err := json.NewDecoder(req.Body).Decode(&metric); err != nil {
 			http.Error(res, err.Error(), http.StatusBadRequest)
 			return
 		}
-		metricType := metrics.MType
-		metricName := metrics.ID
+		metricType := metric.MType
+		metricName := metric.ID
 
 		isGauge, err := updater.IsGauge(metricType)
 		if err != nil {
@@ -42,20 +42,20 @@ func UpdateJSON(updater Updater) func(res http.ResponseWriter, req *http.Request
 		}
 
 		if isGauge {
-			if err := updater.UpdateGauge(metricName, metrics.Value); err != nil {
+			if err := updater.UpdateGauge(metricName, metric.Value); err != nil {
 				handleUpdateError(err, res, req)
 				return
 			}
 		} else {
-			// overwrite metrics.Delta with accumulated value
-			if metrics.Delta, err = updater.IncreaseCounter(metricName, metrics.Delta); err != nil {
+			// overwrite metric.Delta with accumulated value
+			if metric.Delta, err = updater.IncreaseCounter(metricName, metric.Delta); err != nil {
 				handleUpdateError(err, res, req)
 				return
 			}
 		}
 		// success
 		res.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(res).Encode(&metrics); err != nil {
+		if err := json.NewEncoder(res).Encode(&metric); err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return
 		}

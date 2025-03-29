@@ -387,7 +387,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "json: cannot unmarshal string into Go struct field Metrics.value of type float64",
+				response:    "json: cannot unmarshal string into Go struct field Metric.value of type float64",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -401,7 +401,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "json: cannot unmarshal string into Go struct field Metrics.delta of type int64",
+				response:    "json: cannot unmarshal string into Go struct field Metric.delta of type int64",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
