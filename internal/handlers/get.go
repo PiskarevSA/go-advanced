@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/PiskarevSA/go-advanced/api"
 	"github.com/PiskarevSA/go-advanced/internal/entities"
+	"github.com/PiskarevSA/go-advanced/internal/models"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -18,15 +18,15 @@ type Getter interface {
 }
 
 // POST /value
-// - req: "application/json", body: api.Metric
-// - res: "application/json", body: api.Metric
+// - req: "application/json", body: models.Metric
+// - res: "application/json", body: models.Metric
 func GetAsJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Content-Type") != "application/json" {
 			http.Error(res, "expected Content-Type=application/json",
 				http.StatusBadRequest)
 		}
-		var metric api.Metric
+		var metric models.Metric
 		if err := json.NewDecoder(req.Body).Decode(&metric); err != nil {
 			http.Error(res, err.Error(), http.StatusBadRequest)
 			return

@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/PiskarevSA/go-advanced/api"
+	"github.com/PiskarevSA/go-advanced/internal/models"
 )
 
 const updateInterval = 100 * time.Millisecond
@@ -156,7 +156,7 @@ func (a *Agent) Report(
 		errorCount int
 	)
 
-	appendBodyFromMetricAsJSON := func(m api.Metric) {
+	appendBodyFromMetricAsJSON := func(m models.Metric) {
 		body, err := json.Marshal(m)
 		if err != nil {
 			if errorCount == 0 {
@@ -170,7 +170,7 @@ func (a *Agent) Report(
 
 	for key, gauge := range gauge {
 		value := float64(gauge)
-		m := api.Metric{
+		m := models.Metric{
 			ID:    key,
 			MType: "gauge",
 			Value: &value,
@@ -180,7 +180,7 @@ func (a *Agent) Report(
 
 	for key, counter := range counter {
 		delta := int64(counter)
-		m := api.Metric{
+		m := models.Metric{
 			ID:    key,
 			MType: "counter",
 			Delta: &delta,
