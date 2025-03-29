@@ -291,12 +291,12 @@ func TestMetricsRouterJSON(t *testing.T) {
 						metricType: "",
 						// output
 						result: false,
-						err:    entities.ErrEmptyMetricType,
+						err:    entities.NewInvalidMetricTypeError(""),
 					}),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "empty metric type",
+				response:    "invalid metric type:",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},

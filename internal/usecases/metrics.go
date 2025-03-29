@@ -67,6 +67,7 @@ func (d *IteratableDump) NextMetric() (
 	return "", "", "", false
 }
 
+// Metrics contains use cases, related to metrics creating, reading and updating
 type Metrics struct {
 	repo     Repositories
 	OnChange func()
@@ -104,8 +105,6 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 		if m.OnChange != nil {
 			m.OnChange()
 		}
-	case "":
-		return entities.ErrEmptyMetricType
 	default:
 		return entities.NewInvalidMetricTypeError(metricType)
 	}
@@ -118,8 +117,6 @@ func (m *Metrics) IsGauge(metricType string) (bool, error) {
 		return true, nil
 	case "counter":
 		return false, nil
-	case "":
-		return false, entities.ErrEmptyMetricType
 	default:
 		return false, entities.NewInvalidMetricTypeError(metricType)
 	}
@@ -172,8 +169,6 @@ func (m *Metrics) Get(metricType string, metricName string) (
 			return "", entities.NewMetricNameNotFoundError(metricName)
 		}
 		return fmt.Sprint(counter), nil
-	case "":
-		return "", entities.ErrEmptyMetricType
 	default:
 		return "", entities.NewInvalidMetricTypeError(metricType)
 	}

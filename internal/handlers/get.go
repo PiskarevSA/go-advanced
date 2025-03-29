@@ -98,8 +98,6 @@ func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
 		metricNameNotFoundError *entities.MetricNameNotFoundError
 	)
 	switch {
-	case errors.Is(err, entities.ErrEmptyMetricType):
-		http.NotFound(res, req)
 	case errors.As(err, &invalidMetricTypeError):
 		http.NotFound(res, req)
 	case errors.As(err, &metricNameNotFoundError):

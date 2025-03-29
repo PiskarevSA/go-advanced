@@ -87,8 +87,6 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 	)
 	// incorrect metric type should return http.StatusBadRequest
 	switch {
-	case errors.Is(err, entities.ErrEmptyMetricType):
-		http.Error(res, err.Error(), http.StatusBadRequest)
 	case errors.As(err, &invalidMetricTypeError):
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, entities.ErrEmptyMetricName):

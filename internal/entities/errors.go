@@ -7,7 +7,6 @@ import (
 
 // stateless errors
 var (
-	ErrEmptyMetricType = errors.New("empty metric type")
 	ErrEmptyMetricName = errors.New("empty metric name")
 	ErrMissingValue    = errors.New("missing value")
 	ErrMissingDelta    = errors.New("missing delta")
