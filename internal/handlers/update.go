@@ -11,10 +11,10 @@ import (
 )
 
 type Updater interface {
-	Update(metricType string, metricName string, metricValue string) error
-	IsGauge(metricType string) (bool, error)
-	UpdateGauge(metricName string, value *float64) error
-	IncreaseCounter(metricName string, delta *int64) (*int64, error)
+	UpdateMetric(type_, name, value string) error
+	IsGauge(type_ string) (bool, error)
+	UpdateGauge(name string, value *float64) error
+	IncreaseCounter(name string, delta *int64) (*int64, error)
 }
 
 // POST /update
@@ -71,7 +71,7 @@ func Update(updater Updater) func(res http.ResponseWriter, req *http.Request) {
 		metricName := chi.URLParam(req, "name")
 		metricValue := chi.URLParam(req, "value")
 
-		if err := updater.Update(metricType, metricName, metricValue); err != nil {
+		if err := updater.UpdateMetric(metricType, metricName, metricValue); err != nil {
 			handleUpdateError(err, res, req)
 			return
 		}

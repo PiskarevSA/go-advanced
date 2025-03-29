@@ -11,10 +11,10 @@ import (
 )
 
 type Getter interface {
-	Get(metricType string, metricName string) (value string, err error)
-	IsGauge(metricType string) (bool, error)
-	GetGauge(metricName string) (value *float64, err error)
-	GetCounter(metricName string) (value *int64, err error)
+	GetMetric(type_, name string) (value string, err error)
+	IsGauge(type_ string) (bool, error)
+	GetGauge(name string) (value *float64, err error)
+	GetCounter(name string) (value *int64, err error)
 }
 
 // POST /value
@@ -76,7 +76,7 @@ func Get(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
 
-		value, err := getter.Get(metricType, metricName)
+		value, err := getter.GetMetric(metricType, metricName)
 		if err != nil {
 			handleGetterError(err, res, req)
 			return

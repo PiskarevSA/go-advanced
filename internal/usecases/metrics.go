@@ -79,57 +79,57 @@ func NewMetrics(storage Storage) *Metrics {
 	}
 }
 
-func (m *Metrics) Update(metricType string, metricName string, metricValue string) error {
-	switch metricType {
+func (m *Metrics) UpdateMetric(type_ string, name string, value string) error {
+	switch type_ {
 	case "gauge":
-		if len(metricName) == 0 {
+		if len(name) == 0 {
 			return entities.ErrEmptyMetricName
 		}
-		asFloat64, err := strconv.ParseFloat(metricValue, 64)
+		asFloat64, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			return entities.NewMetricValueIsNotValidError(err)
 		}
-		m.storage.SetGauge(metricName, asFloat64)
+		m.storage.SetGauge(name, asFloat64)
 		if m.OnChange != nil {
 			m.OnChange()
 		}
 	case "counter":
-		if len(metricName) == 0 {
+		if len(name) == 0 {
 			return entities.ErrEmptyMetricName
 		}
-		asInt64, err := strconv.ParseInt(metricValue, 10, 64)
+		asInt64, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			return entities.NewMetricValueIsNotValidError(err)
 		}
-		m.storage.IncreaseCounter(metricName, asInt64)
+		m.storage.IncreaseCounter(name, asInt64)
 		if m.OnChange != nil {
 			m.OnChange()
 		}
 	default:
-		return entities.NewInvalidMetricTypeError(metricType)
+		return entities.NewInvalidMetricTypeError(type_)
 	}
 	return nil
 }
 
-func (m *Metrics) IsGauge(metricType string) (bool, error) {
-	switch metricType {
+func (m *Metrics) IsGauge(type_ string) (bool, error) {
+	switch type_ {
 	case "gauge":
 		return true, nil
 	case "counter":
 		return false, nil
 	default:
-		return false, entities.NewInvalidMetricTypeError(metricType)
+		return false, entities.NewInvalidMetricTypeError(type_)
 	}
 }
 
-func (m *Metrics) UpdateGauge(metricName string, value *float64) error {
-	if len(metricName) == 0 {
+func (m *Metrics) UpdateGauge(name string, value *float64) error {
+	if len(name) == 0 {
 		return entities.ErrEmptyMetricName
 	}
 	if value == nil {
 		return entities.ErrMissingValue
 	}
-	m.storage.SetGauge(metricName, *value)
+	m.storage.SetGauge(name, *value)
 	if m.OnChange != nil {
 		m.OnChange()
 	}
@@ -137,14 +137,14 @@ func (m *Metrics) UpdateGauge(metricName string, value *float64) error {
 	return nil
 }
 
-func (m *Metrics) IncreaseCounter(metricName string, delta *int64) (*int64, error) {
-	if len(metricName) == 0 {
+func (m *Metrics) IncreaseCounter(name string, delta *int64) (*int64, error) {
+	if len(name) == 0 {
 		return nil, entities.ErrEmptyMetricName
 	}
 	if delta == nil {
 		return nil, entities.ErrMissingDelta
 	}
-	sum := m.storage.IncreaseCounter(metricName, *delta)
+	sum := m.storage.IncreaseCounter(name, *delta)
 	if m.OnChange != nil {
 		m.OnChange()
 	}
@@ -152,40 +152,40 @@ func (m *Metrics) IncreaseCounter(metricName string, delta *int64) (*int64, erro
 	return &sum, nil
 }
 
-func (m *Metrics) Get(metricType string, metricName string) (
+func (m *Metrics) GetMetric(type_ string, name string) (
 	value string, err error,
 ) {
-	switch metricType {
+	switch type_ {
 	case "gauge":
-		gauge, exists := m.storage.Gauge(metricName)
+		gauge, exists := m.storage.Gauge(name)
 		if !exists {
-			return "", entities.NewMetricNameNotFoundError(metricName)
+			return "", entities.NewMetricNameNotFoundError(name)
 		}
 		return fmt.Sprint(gauge), nil
 
 	case "counter":
-		counter, exists := m.storage.Counter(metricName)
+		counter, exists := m.storage.Counter(name)
 		if !exists {
-			return "", entities.NewMetricNameNotFoundError(metricName)
+			return "", entities.NewMetricNameNotFoundError(name)
 		}
 		return fmt.Sprint(counter), nil
 	default:
-		return "", entities.NewInvalidMetricTypeError(metricType)
+		return "", entities.NewInvalidMetricTypeError(type_)
 	}
 }
 
-func (m *Metrics) GetGauge(metricName string) (value *float64, err error) {
-	gauge, exists := m.storage.Gauge(metricName)
+func (m *Metrics) GetGauge(name string) (value *float64, err error) {
+	gauge, exists := m.storage.Gauge(name)
 	if !exists {
-		return nil, entities.NewMetricNameNotFoundError(metricName)
+		return nil, entities.NewMetricNameNotFoundError(name)
 	}
 	return &gauge, nil
 }
 
-func (m *Metrics) GetCounter(metricName string) (value *int64, err error) {
-	counter, exists := m.storage.Counter(metricName)
+func (m *Metrics) GetCounter(name string) (value *int64, err error) {
+	counter, exists := m.storage.Counter(name)
 	if !exists {
-		return nil, entities.NewMetricNameNotFoundError(metricName)
+		return nil, entities.NewMetricNameNotFoundError(name)
 	}
 	return &counter, nil
 }

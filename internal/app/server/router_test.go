@@ -89,63 +89,63 @@ func (m *mockUsecase) expectCall(mockCallParams any) *mockUsecase {
 	return m
 }
 
-func (m *mockUsecase) IsGauge(metricType string) (bool, error) {
+func (m *mockUsecase) IsGauge(type_ string) (bool, error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockIsGaugeArgs)
-	assert.Equal(m.t, args.metricType, metricType)
+	assert.Equal(m.t, args.metricType, type_)
 	m.callIndex += 1
 	return args.result, args.err
 }
 
-func (m *mockUsecase) Update(metricType string, metricName string, metricValue string) error {
+func (m *mockUsecase) UpdateMetric(type_, name, value string) error {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockUpdateArgs)
-	assert.Equal(m.t, args.metricType, metricType)
-	assert.Equal(m.t, args.metricName, metricName)
-	assert.Equal(m.t, args.metricValue, metricValue)
+	assert.Equal(m.t, args.metricType, type_)
+	assert.Equal(m.t, args.metricName, name)
+	assert.Equal(m.t, args.metricValue, value)
 	m.callIndex += 1
 	return args.err
 }
 
-func (m *mockUsecase) UpdateGauge(metricName string, value *float64) error {
+func (m *mockUsecase) UpdateGauge(name string, value *float64) error {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockUpdateGaugeArgs)
-	assert.Equal(m.t, args.metricName, metricName)
+	assert.Equal(m.t, args.metricName, name)
 	assert.Equal(m.t, args.value, value)
 	m.callIndex += 1
 	return args.err
 }
 
-func (m *mockUsecase) IncreaseCounter(metricName string, delta *int64) (value *int64, err error) {
+func (m *mockUsecase) IncreaseCounter(name string, delta *int64) (value *int64, err error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockIncreaseCounterArgs)
-	assert.Equal(m.t, args.metricName, metricName)
+	assert.Equal(m.t, args.metricName, name)
 	assert.Equal(m.t, args.delta, delta)
 	m.callIndex += 1
 	return args.result, args.err
 }
 
-func (m *mockUsecase) Get(metricType string, metricName string) (value string, err error) {
+func (m *mockUsecase) GetMetric(type_, name string) (value string, err error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockGetArgs)
-	assert.Equal(m.t, args.metricType, metricType)
-	assert.Equal(m.t, args.metricName, metricName)
+	assert.Equal(m.t, args.metricType, type_)
+	assert.Equal(m.t, args.metricName, name)
 	m.callIndex += 1
 	return args.result, args.err
 }
 
-func (m *mockUsecase) GetGauge(metricName string) (value *float64, err error) {
+func (m *mockUsecase) GetGauge(name string) (value *float64, err error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockGetGaugeArgs)
-	assert.Equal(m.t, args.metricName, metricName)
+	assert.Equal(m.t, args.metricName, name)
 	m.callIndex += 1
 	return args.result, args.err
 }
 
-func (m *mockUsecase) GetCounter(metricName string) (value *int64, err error) {
+func (m *mockUsecase) GetCounter(name string) (value *int64, err error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockGetCounterArgs)
-	assert.Equal(m.t, args.metricName, metricName)
+	assert.Equal(m.t, args.metricName, name)
 	m.callIndex += 1
 	return args.result, args.err
 }

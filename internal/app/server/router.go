@@ -8,14 +8,9 @@ import (
 )
 
 type Usecase interface {
-	IsGauge(metricType string) (exists bool, err error)
-	Update(metricType string, metricName string, metricValue string) error
-	UpdateGauge(metricName string, value *float64) error
-	IncreaseCounter(metricName string, delta *int64) (value *int64, err error)
-	Get(metricType string, metricName string) (value string, err error)
-	GetGauge(metricName string) (value *float64, err error)
-	GetCounter(metricName string) (value *int64, err error)
-	DumpIterator() func() (type_ string, name string, value string, exists bool)
+	handlers.Getter
+	handlers.Updater
+	handlers.Dumper
 }
 
 func MetricsRouter(usecase Usecase, middlewares ...func(http.Handler) http.Handler) chi.Router {
