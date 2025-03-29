@@ -19,7 +19,7 @@ import (
 
 type Server struct {
 	storage *storage.MemStorage
-	usecase *usecases.Metrics
+	usecase *usecases.MetricsUsecase
 	config  *Config
 }
 
@@ -27,7 +27,7 @@ func NewServer(config *Config) *Server {
 	storage := storage.NewMemStorage()
 	return &Server{
 		storage: storage,
-		usecase: usecases.NewMetrics(storage),
+		usecase: usecases.NewMetricsUsecase(storage),
 		config:  config,
 	}
 }

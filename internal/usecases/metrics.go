@@ -67,19 +67,19 @@ func (d *IteratableDump) NextMetric() (
 	return "", "", "", false
 }
 
-// Metrics contains use cases, related to metrics creating, reading and updating
-type Metrics struct {
+// MetricsUsecase contains use cases, related to metrics creating, reading and updating
+type MetricsUsecase struct {
 	storage  Storage
 	OnChange func()
 }
 
-func NewMetrics(storage Storage) *Metrics {
-	return &Metrics{
+func NewMetricsUsecase(storage Storage) *MetricsUsecase {
+	return &MetricsUsecase{
 		storage: storage,
 	}
 }
 
-func (m *Metrics) UpdateMetric(type_ string, name string, value string) error {
+func (m *MetricsUsecase) UpdateMetric(type_ string, name string, value string) error {
 	switch type_ {
 	case "gauge":
 		if len(name) == 0 {
@@ -111,7 +111,7 @@ func (m *Metrics) UpdateMetric(type_ string, name string, value string) error {
 	return nil
 }
 
-func (m *Metrics) IsGauge(type_ string) (bool, error) {
+func (m *MetricsUsecase) IsGauge(type_ string) (bool, error) {
 	switch type_ {
 	case "gauge":
 		return true, nil
@@ -122,7 +122,7 @@ func (m *Metrics) IsGauge(type_ string) (bool, error) {
 	}
 }
 
-func (m *Metrics) UpdateGauge(name string, value *float64) error {
+func (m *MetricsUsecase) UpdateGauge(name string, value *float64) error {
 	if len(name) == 0 {
 		return entities.ErrEmptyMetricName
 	}
@@ -137,7 +137,7 @@ func (m *Metrics) UpdateGauge(name string, value *float64) error {
 	return nil
 }
 
-func (m *Metrics) IncreaseCounter(name string, delta *int64) (*int64, error) {
+func (m *MetricsUsecase) IncreaseCounter(name string, delta *int64) (*int64, error) {
 	if len(name) == 0 {
 		return nil, entities.ErrEmptyMetricName
 	}
@@ -152,7 +152,7 @@ func (m *Metrics) IncreaseCounter(name string, delta *int64) (*int64, error) {
 	return &sum, nil
 }
 
-func (m *Metrics) GetMetric(type_ string, name string) (
+func (m *MetricsUsecase) GetMetric(type_ string, name string) (
 	value string, err error,
 ) {
 	switch type_ {
@@ -174,7 +174,7 @@ func (m *Metrics) GetMetric(type_ string, name string) (
 	}
 }
 
-func (m *Metrics) GetGauge(name string) (value *float64, err error) {
+func (m *MetricsUsecase) GetGauge(name string) (value *float64, err error) {
 	gauge, exists := m.storage.Gauge(name)
 	if !exists {
 		return nil, entities.NewMetricNameNotFoundError(name)
@@ -182,7 +182,7 @@ func (m *Metrics) GetGauge(name string) (value *float64, err error) {
 	return &gauge, nil
 }
 
-func (m *Metrics) GetCounter(name string) (value *int64, err error) {
+func (m *MetricsUsecase) GetCounter(name string) (value *int64, err error) {
 	counter, exists := m.storage.Counter(name)
 	if !exists {
 		return nil, entities.NewMetricNameNotFoundError(name)
@@ -190,21 +190,21 @@ func (m *Metrics) GetCounter(name string) (value *int64, err error) {
 	return &counter, nil
 }
 
-func (m *Metrics) DumpIterator() func() (type_ string, name string, value string, exists bool) {
+func (m *MetricsUsecase) DumpIterator() func() (type_ string, name string, value string, exists bool) {
 	gauge, counter := m.storage.Dump()
 
 	iteratableDump := NewIteratableDump(gauge, counter)
 	return iteratableDump.NextMetric
 }
 
-func (m *Metrics) LoadMetrics(r io.Reader) error {
+func (m *MetricsUsecase) LoadMetrics(r io.Reader) error {
 	if err := m.storage.Load(r); err != nil {
 		return fmt.Errorf("load metrics: %w", err)
 	}
 	return nil
 }
 
-func (m *Metrics) StoreMetrics(w io.Writer) error {
+func (m *MetricsUsecase) StoreMetrics(w io.Writer) error {
 	if err := m.storage.Store(w); err != nil {
 		return fmt.Errorf("store metrics: %w", err)
 	}
