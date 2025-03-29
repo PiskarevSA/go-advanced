@@ -20,7 +20,7 @@ type Updater interface {
 // POST /update
 // - req: "application/json", body: api.Metric
 // - res: "application/json", body: api.Metric
-func UpdateJSON(updater Updater) func(res http.ResponseWriter, req *http.Request) {
+func UpdateFromJSON(updater Updater) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Content-Type") != "application/json" {
 			http.Error(res, "expected Content-Type=application/json",
@@ -65,7 +65,7 @@ func UpdateJSON(updater Updater) func(res http.ResponseWriter, req *http.Request
 // POST "text/plain" /update/{type}/{name}/{value}
 // - req: body: none
 // - res: "text/plain; charset=utf-8", body: none
-func Update(updater Updater) func(res http.ResponseWriter, req *http.Request) {
+func UpdateFromURL(updater Updater) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")

@@ -20,7 +20,7 @@ type Getter interface {
 // POST /value
 // - req: "application/json", body: api.Metric
 // - res: "application/json", body: api.Metric
-func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
+func GetAsJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Content-Type") != "application/json" {
 			http.Error(res, "expected Content-Type=application/json",
@@ -71,7 +71,7 @@ func GetJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 
 // GET /value/{type}/{name}
 // - res: "text/plain; charset=utf-8", body: metric value as string
-func Get(getter Getter) func(res http.ResponseWriter, req *http.Request) {
+func GetAsText(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 		metricType := chi.URLParam(req, "type")
 		metricName := chi.URLParam(req, "name")
