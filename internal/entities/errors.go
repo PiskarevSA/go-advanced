@@ -1,53 +1,17 @@
-package errors
+package entities
 
 import (
+	"errors"
 	"fmt"
 )
 
 // stateless errors
-// .. EmptyMetricTypeError
-type EmptyMetricTypeError struct{}
-
-func NewEmptyMetricTypeError() *EmptyMetricTypeError {
-	return &EmptyMetricTypeError{}
-}
-
-func (e EmptyMetricTypeError) Error() string {
-	return "empty metric type"
-}
-
-// .. EmptyMetricNameError
-type EmptyMetricNameError struct{}
-
-func NewEmptyMetricNameError() *EmptyMetricNameError {
-	return &EmptyMetricNameError{}
-}
-
-func (e *EmptyMetricNameError) Error() string {
-	return "empty metric name"
-}
-
-// .. MissingValueError
-type MissingValueError struct{}
-
-func NewMissingValueError() *MissingValueError {
-	return &MissingValueError{}
-}
-
-func (e *MissingValueError) Error() string {
-	return "missing value"
-}
-
-// .. MissingDeltaError
-type MissingDeltaError struct{}
-
-func NewMissingDeltaError() *MissingDeltaError {
-	return &MissingDeltaError{}
-}
-
-func (e *MissingDeltaError) Error() string {
-	return "missing delta"
-}
+var (
+	ErrEmptyMetricType = errors.New("empty metric type")
+	ErrEmptyMetricName = errors.New("empty metric name")
+	ErrMissingValue    = errors.New("missing value")
+	ErrMissingDelta    = errors.New("missing delta")
+)
 
 // stateful errors
 // .. InvalidMetricTypeError

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/PiskarevSA/go-advanced/internal/errors"
+	"github.com/PiskarevSA/go-advanced/internal/entities"
 )
 
 type Repositories interface {
@@ -82,11 +82,11 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 	switch metricType {
 	case "gauge":
 		if len(metricName) == 0 {
-			return errors.NewEmptyMetricNameError()
+			return entities.ErrEmptyMetricName
 		}
 		f64, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
-			return errors.NewMetricValueIsNotValidError(err)
+			return entities.NewMetricValueIsNotValidError(err)
 		}
 		m.repo.SetGauge(metricName, f64)
 		if m.OnChange != nil {
@@ -94,20 +94,20 @@ func (m *Metrics) Update(metricType string, metricName string, metricValue strin
 		}
 	case "counter":
 		if len(metricName) == 0 {
-			return errors.NewEmptyMetricNameError()
+			return entities.ErrEmptyMetricName
 		}
 		i64, err := strconv.ParseInt(metricValue, 10, 64)
 		if err != nil {
-			return errors.NewMetricValueIsNotValidError(err)
+			return entities.NewMetricValueIsNotValidError(err)
 		}
 		m.repo.IncreaseCounter(metricName, i64)
 		if m.OnChange != nil {
 			m.OnChange()
 		}
 	case "":
-		return errors.NewEmptyMetricTypeError()
+		return entities.ErrEmptyMetricType
 	default:
-		return errors.NewInvalidMetricTypeError(metricType)
+		return entities.NewInvalidMetricTypeError(metricType)
 	}
 	return nil
 }
@@ -119,18 +119,18 @@ func (m *Metrics) IsGauge(metricType string) (bool, error) {
 	case "counter":
 		return false, nil
 	case "":
-		return false, errors.NewEmptyMetricTypeError()
+		return false, entities.ErrEmptyMetricType
 	default:
-		return false, errors.NewInvalidMetricTypeError(metricType)
+		return false, entities.NewInvalidMetricTypeError(metricType)
 	}
 }
 
 func (m *Metrics) UpdateGauge(metricName string, value *float64) error {
 	if len(metricName) == 0 {
-		return errors.NewEmptyMetricNameError()
+		return entities.ErrEmptyMetricName
 	}
 	if value == nil {
-		return errors.NewMissingValueError()
+		return entities.ErrMissingValue
 	}
 	m.repo.SetGauge(metricName, *value)
 	if m.OnChange != nil {
@@ -142,10 +142,10 @@ func (m *Metrics) UpdateGauge(metricName string, value *float64) error {
 
 func (m *Metrics) IncreaseCounter(metricName string, delta *int64) (*int64, error) {
 	if len(metricName) == 0 {
-		return nil, errors.NewEmptyMetricNameError()
+		return nil, entities.ErrEmptyMetricName
 	}
 	if delta == nil {
-		return nil, errors.NewMissingDeltaError()
+		return nil, entities.ErrMissingDelta
 	}
 	sum := m.repo.IncreaseCounter(metricName, *delta)
 	if m.OnChange != nil {
@@ -162,27 +162,27 @@ func (m *Metrics) Get(metricType string, metricName string) (
 	case "gauge":
 		gauge, exists := m.repo.Gauge(metricName)
 		if !exists {
-			return "", errors.NewMetricNameNotFoundError(metricName)
+			return "", entities.NewMetricNameNotFoundError(metricName)
 		}
 		return fmt.Sprint(gauge), nil
 
 	case "counter":
 		counter, exists := m.repo.Counter(metricName)
 		if !exists {
-			return "", errors.NewMetricNameNotFoundError(metricName)
+			return "", entities.NewMetricNameNotFoundError(metricName)
 		}
 		return fmt.Sprint(counter), nil
 	case "":
-		return "", errors.NewEmptyMetricTypeError()
+		return "", entities.ErrEmptyMetricType
 	default:
-		return "", errors.NewInvalidMetricTypeError(metricType)
+		return "", entities.NewInvalidMetricTypeError(metricType)
 	}
 }
 
 func (m *Metrics) GetGauge(metricName string) (value *float64, err error) {
 	gauge, exists := m.repo.Gauge(metricName)
 	if !exists {
-		return nil, errors.NewMetricNameNotFoundError(metricName)
+		return nil, entities.NewMetricNameNotFoundError(metricName)
 	}
 	return &gauge, nil
 }
@@ -190,7 +190,7 @@ func (m *Metrics) GetGauge(metricName string) (value *float64, err error) {
 func (m *Metrics) GetCounter(metricName string) (value *int64, err error) {
 	counter, exists := m.repo.Counter(metricName)
 	if !exists {
-		return nil, errors.NewMetricNameNotFoundError(metricName)
+		return nil, entities.NewMetricNameNotFoundError(metricName)
 	}
 	return &counter, nil
 }

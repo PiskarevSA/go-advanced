@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/PiskarevSA/go-advanced/internal/errors"
+	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -291,7 +291,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 						metricType: "",
 						// output
 						result: false,
-						err:    errors.NewEmptyMetricTypeError(),
+						err:    entities.ErrEmptyMetricType,
 					}),
 			},
 			want: want{
@@ -312,7 +312,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 						metricType: "foo",
 						// output
 						result: false,
-						err:    errors.NewInvalidMetricTypeError("foo"),
+						err:    entities.NewInvalidMetricTypeError("foo"),
 					}),
 			},
 			want: want{
@@ -340,7 +340,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 						metricName: "",
 						value:      nil,
 						// output
-						err: errors.NewEmptyMetricNameError(),
+						err: entities.ErrEmptyMetricName,
 					}),
 			},
 			want: want{
@@ -368,7 +368,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 						metricName: "foo",
 						value:      nil,
 						// output
-						err: errors.NewMissingValueError(),
+						err: entities.ErrMissingValue,
 					}),
 			},
 			want: want{
@@ -484,7 +484,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 						metricType: "foo",
 						// output
 						result: false,
-						err:    errors.NewInvalidMetricTypeError("foo"),
+						err:    entities.NewInvalidMetricTypeError("foo"),
 					}),
 			},
 			want: want{
@@ -513,7 +513,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 						metricName: "foo",
 						// output
 						result: nil,
-						err:    errors.NewMetricNameNotFoundError("foo"),
+						err:    entities.NewMetricNameNotFoundError("foo"),
 					}),
 			},
 			want: want{
@@ -624,7 +624,7 @@ func TestMetricsRouter(t *testing.T) {
 						metricName:  "123",
 						metricValue: "456",
 						// output
-						err: errors.NewInvalidMetricTypeError("foo"),
+						err: entities.NewInvalidMetricTypeError("foo"),
 					}),
 			},
 			want: want{
@@ -671,7 +671,7 @@ func TestMetricsRouter(t *testing.T) {
 						metricName:  "foo",
 						metricValue: "str_value",
 						// output
-						err: errors.NewMetricValueIsNotValidError(fmt.Errorf("parsing error")),
+						err: entities.NewMetricValueIsNotValidError(fmt.Errorf("parsing error")),
 					}),
 			},
 			want: want{
@@ -692,7 +692,7 @@ func TestMetricsRouter(t *testing.T) {
 						metricName:  "foo",
 						metricValue: "str_value",
 						// output
-						err: errors.NewMetricValueIsNotValidError(fmt.Errorf("parsing error")),
+						err: entities.NewMetricValueIsNotValidError(fmt.Errorf("parsing error")),
 					}),
 			},
 			want: want{
@@ -781,7 +781,7 @@ func TestMetricsRouter(t *testing.T) {
 						metricName: "foo",
 						// output
 						result: "",
-						err:    errors.NewMetricNameNotFoundError("foo"),
+						err:    entities.NewMetricNameNotFoundError("foo"),
 					}),
 			},
 			want: want{

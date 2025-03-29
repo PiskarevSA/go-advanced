@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/PiskarevSA/go-advanced/api"
-	"github.com/PiskarevSA/go-advanced/internal/errors"
+	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -80,19 +81,23 @@ func Update(updater Updater) func(res http.ResponseWriter, req *http.Request) {
 }
 
 func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
+	var (
+		invalidMetricTypeError     *entities.InvalidMetricTypeError
+		metricValueIsNotValidError *entities.MetricValueIsNotValidError
+	)
 	// incorrect metric type should return http.StatusBadRequest
-	switch err.(type) {
-	case *errors.EmptyMetricTypeError:
+	switch {
+	case errors.Is(err, entities.ErrEmptyMetricType):
 		http.Error(res, err.Error(), http.StatusBadRequest)
-	case *errors.InvalidMetricTypeError:
+	case errors.As(err, &invalidMetricTypeError):
 		http.Error(res, err.Error(), http.StatusBadRequest)
-	case *errors.EmptyMetricNameError:
+	case errors.Is(err, entities.ErrEmptyMetricName):
 		http.NotFound(res, req)
-	case *errors.MetricValueIsNotValidError:
+	case errors.As(err, &metricValueIsNotValidError):
 		http.Error(res, err.Error(), http.StatusBadRequest)
-	case *errors.MissingValueError:
+	case errors.Is(err, entities.ErrMissingValue):
 		http.Error(res, err.Error(), http.StatusBadRequest)
-	case *errors.MissingDeltaError:
+	case errors.Is(err, entities.ErrMissingDelta):
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	default:
 		// unexpected error

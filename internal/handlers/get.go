@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/PiskarevSA/go-advanced/api"
-	"github.com/PiskarevSA/go-advanced/internal/errors"
+	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -92,12 +93,16 @@ func Get(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 }
 
 func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
-	switch err.(type) {
-	case *errors.EmptyMetricTypeError:
+	var (
+		invalidMetricTypeError  *entities.InvalidMetricTypeError
+		metricNameNotFoundError *entities.MetricNameNotFoundError
+	)
+	switch {
+	case errors.Is(err, entities.ErrEmptyMetricType):
 		http.NotFound(res, req)
-	case *errors.InvalidMetricTypeError:
+	case errors.As(err, &invalidMetricTypeError):
 		http.NotFound(res, req)
-	case *errors.MetricNameNotFoundError:
+	case errors.As(err, &metricNameNotFoundError):
 		http.NotFound(res, req)
 	default:
 		// unexpected error
