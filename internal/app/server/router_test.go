@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,62 +12,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockIsGaugeArgs struct {
+type mockGetArgs struct {
 	// input
-	metricType string
+	metric entities.Metric
 	// output
-	result bool
+	result *entities.Metric
 	err    error
 }
 
 type mockUpdateArgs struct {
 	// input
-	metricType  string
-	metricName  string
-	metricValue string
+	metric entities.Metric
 	// output
-	err error
-}
-
-type mockUpdateGaugeArgs struct {
-	// input
-	metricName string
-	value      *float64
-	// output
-	err error
-}
-
-type mockIncreaseCounterArgs struct {
-	// input
-	metricName string
-	delta      *int64
-	// output
-	result *int64
-	err    error
-}
-
-type mockGetArgs struct {
-	// input
-	metricType string
-	metricName string
-	// output
-	result string
-	err    error
-}
-
-type mockGetGaugeArgs struct {
-	// input
-	metricName string
-	// output
-	result *float64
-	err    error
-}
-
-type mockGetCounterArgs struct {
-	// input
-	metricName string
-	// output
-	result *int64
+	result *entities.Metric
 	err    error
 }
 
@@ -89,63 +45,18 @@ func (m *mockUsecase) expectCall(mockCallParams any) *mockUsecase {
 	return m
 }
 
-func (m *mockUsecase) IsGauge(type_ string) (bool, error) {
-	require.Less(m.t, m.callIndex, len(m.mockCallParams))
-	args := m.mockCallParams[m.callIndex].(mockIsGaugeArgs)
-	assert.Equal(m.t, args.metricType, type_)
-	m.callIndex += 1
-	return args.result, args.err
-}
-
-func (m *mockUsecase) UpdateMetric(type_, name, value string) error {
-	require.Less(m.t, m.callIndex, len(m.mockCallParams))
-	args := m.mockCallParams[m.callIndex].(mockUpdateArgs)
-	assert.Equal(m.t, args.metricType, type_)
-	assert.Equal(m.t, args.metricName, name)
-	assert.Equal(m.t, args.metricValue, value)
-	m.callIndex += 1
-	return args.err
-}
-
-func (m *mockUsecase) UpdateGauge(name string, value *float64) error {
-	require.Less(m.t, m.callIndex, len(m.mockCallParams))
-	args := m.mockCallParams[m.callIndex].(mockUpdateGaugeArgs)
-	assert.Equal(m.t, args.metricName, name)
-	assert.Equal(m.t, args.value, value)
-	m.callIndex += 1
-	return args.err
-}
-
-func (m *mockUsecase) IncreaseCounter(name string, delta *int64) (value *int64, err error) {
-	require.Less(m.t, m.callIndex, len(m.mockCallParams))
-	args := m.mockCallParams[m.callIndex].(mockIncreaseCounterArgs)
-	assert.Equal(m.t, args.metricName, name)
-	assert.Equal(m.t, args.delta, delta)
-	m.callIndex += 1
-	return args.result, args.err
-}
-
-func (m *mockUsecase) GetMetric(type_, name string) (value string, err error) {
+func (m *mockUsecase) Get(metric entities.Metric) (*entities.Metric, error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockGetArgs)
-	assert.Equal(m.t, args.metricType, type_)
-	assert.Equal(m.t, args.metricName, name)
+	assert.Equal(m.t, args.metric, metric)
 	m.callIndex += 1
 	return args.result, args.err
 }
 
-func (m *mockUsecase) GetGauge(name string) (value *float64, err error) {
+func (m *mockUsecase) Update(metric entities.Metric) (*entities.Metric, error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
-	args := m.mockCallParams[m.callIndex].(mockGetGaugeArgs)
-	assert.Equal(m.t, args.metricName, name)
-	m.callIndex += 1
-	return args.result, args.err
-}
-
-func (m *mockUsecase) GetCounter(name string) (value *int64, err error) {
-	require.Less(m.t, m.callIndex, len(m.mockCallParams))
-	args := m.mockCallParams[m.callIndex].(mockGetCounterArgs)
-	assert.Equal(m.t, args.metricName, name)
+	args := m.mockCallParams[m.callIndex].(mockUpdateArgs)
+	assert.Equal(m.t, args.metric, metric)
 	m.callIndex += 1
 	return args.result, args.err
 }
@@ -201,8 +112,6 @@ func TestMetricsRouterJSON(t *testing.T) {
 		response    string
 		contentType string
 	}
-	f64_1_23 := 1.23
-	var i64_456 int64 = 456
 	tests := []struct {
 		name  string
 		given given
@@ -215,18 +124,19 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/update/",
 				body:   `{"id":"foo","type":"gauge","value":1.23}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
+					expectCall(mockUpdateArgs{
 						// input
-						metricType: "gauge",
+						metric: entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+							Value:   1.23,
+						},
 						// output
-						result: true,
-						err:    nil,
-					}).
-					expectCall(mockUpdateGaugeArgs{
-						// input
-						metricName: "foo",
-						value:      &f64_1_23,
-						// output
+						result: &entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+							Value:   1.23,
+						},
 						err: nil,
 					}),
 			},
@@ -243,20 +153,20 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/update/",
 				body:   `{"id":"bar","type":"counter","delta":456}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
+					expectCall(mockUpdateArgs{
 						// input
-						metricType: "counter",
+						metric: entities.Metric{
+							IsGauge: false,
+							Name:    "bar",
+							Delta:   456,
+						},
 						// output
-						result: false,
-						err:    nil,
-					}).
-					expectCall(mockIncreaseCounterArgs{
-						// input
-						metricName: "bar",
-						delta:      &i64_456,
-						// output
-						result: &i64_456,
-						err:    nil,
+						result: &entities.Metric{
+							IsGauge: false,
+							Name:    "bar",
+							Delta:   456,
+						},
+						err: nil,
 					}),
 			},
 			want: want{
@@ -282,17 +192,10 @@ func TestMetricsRouterJSON(t *testing.T) {
 		{
 			name: "update: empty metric type",
 			given: given{
-				method: http.MethodPost,
-				url:    "/update/",
-				body:   `{}`,
-				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
-						// input
-						metricType: "",
-						// output
-						result: false,
-						err:    entities.NewInvalidMetricTypeError(""),
-					}),
+				method:      http.MethodPost,
+				url:         "/update/",
+				body:        `{}`,
+				mockUsecase: newMockUsecase(t),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -303,17 +206,10 @@ func TestMetricsRouterJSON(t *testing.T) {
 		{
 			name: "update: unexpected metric type",
 			given: given{
-				method: http.MethodPost,
-				url:    "/update/",
-				body:   `{"type":"foo"}`,
-				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
-						// input
-						metricType: "foo",
-						// output
-						result: false,
-						err:    entities.NewInvalidMetricTypeError("foo"),
-					}),
+				method:      http.MethodPost,
+				url:         "/update/",
+				body:        `{"type":"foo"}`,
+				mockUsecase: newMockUsecase(t),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -324,24 +220,10 @@ func TestMetricsRouterJSON(t *testing.T) {
 		{
 			name: "update: empty metric name",
 			given: given{
-				method: http.MethodPost,
-				url:    "/update/",
-				body:   `{"type":"gauge"}`,
-				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
-						// input
-						metricType: "gauge",
-						// output
-						result: true,
-						err:    nil,
-					}).
-					expectCall(mockUpdateGaugeArgs{
-						// input
-						metricName: "",
-						value:      nil,
-						// output
-						err: entities.ErrEmptyMetricName,
-					}),
+				method:      http.MethodPost,
+				url:         "/update/",
+				body:        `{"type":"gauge"}`,
+				mockUsecase: newMockUsecase(t),
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -352,24 +234,10 @@ func TestMetricsRouterJSON(t *testing.T) {
 		{
 			name: "update: empty metric value",
 			given: given{
-				method: http.MethodPost,
-				url:    "/update/",
-				body:   `{"id":"foo","type":"gauge"}`,
-				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
-						// input
-						metricType: "gauge",
-						// output
-						result: true,
-						err:    nil,
-					}).
-					expectCall(mockUpdateGaugeArgs{
-						// input
-						metricName: "foo",
-						value:      nil,
-						// output
-						err: entities.ErrMissingValue,
-					}),
+				method:      http.MethodPost,
+				url:         "/update/",
+				body:        `{"id":"foo","type":"gauge"}`,
+				mockUsecase: newMockUsecase(t),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -387,7 +255,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "json: cannot unmarshal string into Go struct field Metric.value of type float64",
+				response:    "json request decoding: json: cannot unmarshal string into Go struct field Metric.value of type float64",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -401,7 +269,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "json: cannot unmarshal string into Go struct field Metric.delta of type int64",
+				response:    "json request decoding: json: cannot unmarshal string into Go struct field Metric.delta of type int64",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -412,19 +280,20 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/value/",
 				body:   `{"id":"foo","type":"gauge"}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
+					expectCall(mockGetArgs{
 						// input
-						metricType: "gauge",
+						metric: entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+						},
 						// output
-						result: true,
-						err:    nil,
-					}).expectCall(mockGetGaugeArgs{
-					// input
-					metricName: "foo",
-					// output
-					result: &f64_1_23,
-					err:    nil,
-				}),
+						result: &entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+							Value:   1.23,
+						},
+						err: nil,
+					}),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -439,19 +308,20 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/value/",
 				body:   `{"id":"bar","type":"counter"}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
+					expectCall(mockGetArgs{
 						// input
-						metricType: "counter",
+						metric: entities.Metric{
+							IsGauge: false,
+							Name:    "bar",
+						},
 						// output
-						result: false,
-						err:    nil,
-					}).expectCall(mockGetCounterArgs{
-					// input
-					metricName: "bar",
-					// output
-					result: &i64_456,
-					err:    nil,
-				}),
+						result: &entities.Metric{
+							IsGauge: false,
+							Name:    "bar",
+							Delta:   456,
+						},
+						err: nil,
+					}),
 			},
 			want: want{
 				code:        http.StatusOK,
@@ -475,17 +345,10 @@ func TestMetricsRouterJSON(t *testing.T) {
 		{
 			name: "value: unknown metric type",
 			given: given{
-				method: http.MethodPost,
-				url:    "/value/",
-				body:   `{"type":"foo"}`,
-				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
-						// input
-						metricType: "foo",
-						// output
-						result: false,
-						err:    entities.NewInvalidMetricTypeError("foo"),
-					}),
+				method:      http.MethodPost,
+				url:         "/value/",
+				body:        `{"type":"foo"}`,
+				mockUsecase: newMockUsecase(t),
 			},
 			want: want{
 				code:        http.StatusNotFound,
@@ -493,7 +356,6 @@ func TestMetricsRouterJSON(t *testing.T) {
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
-
 		{
 			name: "value: unknown metric name",
 			given: given{
@@ -501,19 +363,19 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/value/",
 				body:   `{"id":"foo","type":"gauge"}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockIsGaugeArgs{
+					expectCall(mockGetArgs{
 						// input
-						metricType: "gauge",
+						metric: entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+						},
 						// output
-						result: true,
-						err:    nil,
-					}).
-					expectCall(mockGetGaugeArgs{
-						// input
-						metricName: "foo",
-						// output
-						result: nil,
-						err:    entities.NewMetricNameNotFoundError("foo"),
+						result: &entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+							Value:   0,
+						},
+						err: entities.NewMetricNameNotFoundError("foo"),
 					}),
 			},
 			want: want{
@@ -565,10 +427,17 @@ func TestMetricsRouter(t *testing.T) {
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockUpdateArgs{
 						// input
-						metricType:  "gauge",
-						metricName:  "foo",
-						metricValue: "1.23",
+						metric: entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+							Value:   1.23,
+						},
 						// output
+						result: &entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+							Value:   1.23,
+						},
 						err: nil,
 					}),
 			},
@@ -586,10 +455,17 @@ func TestMetricsRouter(t *testing.T) {
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockUpdateArgs{
 						// input
-						metricType:  "counter",
-						metricName:  "bar",
-						metricValue: "456",
+						metric: entities.Metric{
+							IsGauge: false,
+							Name:    "bar",
+							Delta:   456,
+						},
 						// output
+						result: &entities.Metric{
+							IsGauge: false,
+							Name:    "bar",
+							Delta:   456,
+						},
 						err: nil,
 					}),
 			},
@@ -615,17 +491,9 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: unexpected metric type",
 			given: given{
-				method: http.MethodPost,
-				url:    "/update/foo/123/456",
-				mockUsecase: newMockUsecase(t).
-					expectCall(mockUpdateArgs{
-						// input
-						metricType:  "foo",
-						metricName:  "123",
-						metricValue: "456",
-						// output
-						err: entities.NewInvalidMetricTypeError("foo"),
-					}),
+				method:      http.MethodPost,
+				url:         "/update/foo/123/456",
+				mockUsecase: newMockUsecase(t),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
@@ -662,42 +530,26 @@ func TestMetricsRouter(t *testing.T) {
 		{
 			name: "update: incorrect gauge value",
 			given: given{
-				method: http.MethodPost,
-				url:    "/update/gauge/foo/str_value",
-				mockUsecase: newMockUsecase(t).
-					expectCall(mockUpdateArgs{
-						// input
-						metricType:  "gauge",
-						metricName:  "foo",
-						metricValue: "str_value",
-						// output
-						err: entities.NewMetricValueIsNotValidError(fmt.Errorf("parsing error")),
-					}),
+				method:      http.MethodPost,
+				url:         "/update/gauge/foo/str_value",
+				mockUsecase: newMockUsecase(t),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "invalid metric value: parsing error\n",
+				response:    "invalid metric value: strconv.ParseFloat: parsing \"str_value\": invalid syntax\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 		{
 			name: "update: incorrect counter value",
 			given: given{
-				method: http.MethodPost,
-				url:    "/update/counter/foo/str_value",
-				mockUsecase: newMockUsecase(t).
-					expectCall(mockUpdateArgs{
-						// input
-						metricType:  "counter",
-						metricName:  "foo",
-						metricValue: "str_value",
-						// output
-						err: entities.NewMetricValueIsNotValidError(fmt.Errorf("parsing error")),
-					}),
+				method:      http.MethodPost,
+				url:         "/update/counter/foo/str_value",
+				mockUsecase: newMockUsecase(t),
 			},
 			want: want{
 				code:        http.StatusBadRequest,
-				response:    "invalid metric value: parsing error\n",
+				response:    "invalid metric value: strconv.ParseInt: parsing \"str_value\": invalid syntax\n",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -709,11 +561,17 @@ func TestMetricsRouter(t *testing.T) {
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockGetArgs{
 						// input
-						metricType: "gauge",
-						metricName: "foo",
+						metric: entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+						},
 						// output
-						result: "1.23",
-						err:    nil,
+						result: &entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+							Value:   1.23,
+						},
+						err: nil,
 					}),
 			},
 			want: want{
@@ -730,11 +588,17 @@ func TestMetricsRouter(t *testing.T) {
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockGetArgs{
 						// input
-						metricType: "counter",
-						metricName: "bar",
+						metric: entities.Metric{
+							IsGauge: false,
+							Name:    "bar",
+						},
 						// output
-						result: "456",
-						err:    nil,
+						result: &entities.Metric{
+							IsGauge: false,
+							Name:    "bar",
+							Delta:   456,
+						},
+						err: nil,
 					}),
 			},
 			want: want{
@@ -777,10 +641,12 @@ func TestMetricsRouter(t *testing.T) {
 				mockUsecase: newMockUsecase(t).
 					expectCall(mockGetArgs{
 						// input
-						metricType: "gauge",
-						metricName: "foo",
+						metric: entities.Metric{
+							IsGauge: true,
+							Name:    "foo",
+						},
 						// output
-						result: "",
+						result: nil,
 						err:    entities.NewMetricNameNotFoundError("foo"),
 					}),
 			},

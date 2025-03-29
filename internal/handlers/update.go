@@ -6,15 +6,11 @@ import (
 	"net/http"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
-	"github.com/PiskarevSA/go-advanced/internal/models"
-	"github.com/go-chi/chi/v5"
+	"github.com/PiskarevSA/go-advanced/internal/handlers/validation"
 )
 
 type Updater interface {
-	UpdateMetric(type_, name, value string) error
-	IsGauge(type_ string) (bool, error)
-	UpdateGauge(name string, value *float64) error
-	IncreaseCounter(name string, delta *int64) (*int64, error)
+	Update(metric entities.Metric) (*entities.Metric, error)
 }
 
 // POST /update
@@ -22,40 +18,21 @@ type Updater interface {
 // - res: "application/json", body: models.Metric
 func UpdateFromJSON(updater Updater) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		if req.Header.Get("Content-Type") != "application/json" {
-			http.Error(res, "expected Content-Type=application/json",
-				http.StatusBadRequest)
-			return
-		}
-		var metric models.Metric
-		if err := json.NewDecoder(req.Body).Decode(&metric); err != nil {
-			http.Error(res, err.Error(), http.StatusBadRequest)
-			return
-		}
-		metricType := metric.MType
-		metricName := metric.ID
-
-		isGauge, err := updater.IsGauge(metricType)
+		validMetric, err := validation.ValidateMetricFromUpdateFromJSONRequest(req)
 		if err != nil {
-			http.Error(res, err.Error(), http.StatusBadRequest)
+			handleUpdateError(err, res, req)
 			return
 		}
 
-		if isGauge {
-			if err := updater.UpdateGauge(metricName, metric.Value); err != nil {
-				handleUpdateError(err, res, req)
-				return
-			}
-		} else {
-			// overwrite metric.Delta with accumulated value
-			if metric.Delta, err = updater.IncreaseCounter(metricName, metric.Delta); err != nil {
-				handleUpdateError(err, res, req)
-				return
-			}
+		updatedMetric, err := updater.Update(*validMetric)
+		if err != nil {
+			handleUpdateError(err, res, req)
+			return
 		}
 		// success
+		response := validation.MakeResponseFromEntityMetric(*updatedMetric)
 		res.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(res).Encode(&metric); err != nil {
+		if err := json.NewEncoder(res).Encode(response); err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -67,11 +44,13 @@ func UpdateFromJSON(updater Updater) func(res http.ResponseWriter, req *http.Req
 // - res: "text/plain; charset=utf-8", body: none
 func UpdateFromURL(updater Updater) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		metricType := chi.URLParam(req, "type")
-		metricName := chi.URLParam(req, "name")
-		metricValue := chi.URLParam(req, "value")
+		validMetric, err := validation.ValidateMetricFromUpdateFromURLRequest(req)
+		if err != nil {
+			handleUpdateError(err, res, req)
+			return
+		}
 
-		if err := updater.UpdateMetric(metricType, metricName, metricValue); err != nil {
+		if _, err := updater.Update(*validMetric); err != nil {
 			handleUpdateError(err, res, req)
 			return
 		}
@@ -84,9 +63,12 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 	var (
 		invalidMetricTypeError     *entities.InvalidMetricTypeError
 		metricValueIsNotValidError *entities.MetricValueIsNotValidError
+		jsonRequestDecodeError     *entities.JsonRequestDecodeError
 	)
 	// incorrect metric type should return http.StatusBadRequest
 	switch {
+	case errors.Is(err, entities.ErrJsonRequestExpected):
+		http.Error(res, err.Error(), http.StatusBadRequest)
 	case errors.As(err, &invalidMetricTypeError):
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, entities.ErrEmptyMetricName):
@@ -96,6 +78,8 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 	case errors.Is(err, entities.ErrMissingValue):
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, entities.ErrMissingDelta):
+		http.Error(res, err.Error(), http.StatusBadRequest)
+	case errors.As(err, &jsonRequestDecodeError):
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	default:
 		// unexpected error

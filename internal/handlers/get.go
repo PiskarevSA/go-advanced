@@ -3,18 +3,15 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
-	"github.com/PiskarevSA/go-advanced/internal/models"
-	"github.com/go-chi/chi/v5"
+	"github.com/PiskarevSA/go-advanced/internal/handlers/validation"
 )
 
 type Getter interface {
-	GetMetric(type_, name string) (value string, err error)
-	IsGauge(type_ string) (bool, error)
-	GetGauge(name string) (value *float64, err error)
-	GetCounter(name string) (value *int64, err error)
+	Get(metric entities.Metric) (*entities.Metric, error)
 }
 
 // POST /value
@@ -22,47 +19,22 @@ type Getter interface {
 // - res: "application/json", body: models.Metric
 func GetAsJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		if req.Header.Get("Content-Type") != "application/json" {
-			http.Error(res, "expected Content-Type=application/json",
-				http.StatusBadRequest)
-		}
-		var metric models.Metric
-		if err := json.NewDecoder(req.Body).Decode(&metric); err != nil {
-			http.Error(res, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		metricType := metric.MType
-		metricName := metric.ID
-
-		isGauge, err := getter.IsGauge(metricType)
+		validMetric, err := validation.ValidateMetricFromGetAsJSONRequest(req)
 		if err != nil {
 			handleGetterError(err, res, req)
 			return
 		}
 
-		if isGauge {
-			gauge, err := getter.GetGauge(metricName)
-			if err != nil {
-				handleGetterError(err, res, req)
-				return
-			}
-			metric.Value = gauge
-			metric.Delta = nil
-		} else {
-			counter, err := getter.GetCounter(metricName)
-			if err != nil {
-				handleGetterError(err, res, req)
-				return
-			}
-
-			metric.Delta = counter
-			metric.Value = nil
+		responseMetric, err := getter.Get(*validMetric)
+		if err != nil {
+			handleGetterError(err, res, req)
+			return
 		}
 
 		// success
+		response := validation.MakeResponseFromEntityMetric(*responseMetric)
 		res.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(res).Encode(&metric); err != nil {
+		if err := json.NewEncoder(res).Encode(response); err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -73,17 +45,26 @@ func GetAsJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 // - res: "text/plain; charset=utf-8", body: metric value as string
 func GetAsText(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		metricType := chi.URLParam(req, "type")
-		metricName := chi.URLParam(req, "name")
+		validMetric, err := validation.ValidateMetricFromGetGetAsTextRequest(req)
+		if err != nil {
+			handleUpdateError(err, res, req)
+			return
+		}
 
-		value, err := getter.GetMetric(metricType, metricName)
+		responseMetric, err := getter.Get(*validMetric)
 		if err != nil {
 			handleGetterError(err, res, req)
 			return
 		}
 
 		// success
-		_, err = res.Write([]byte(value))
+		var response string
+		if responseMetric.IsGauge {
+			response = fmt.Sprint(responseMetric.Value)
+		} else {
+			response = fmt.Sprint(responseMetric.Delta)
+		}
+		_, err = res.Write([]byte(response))
 		if err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return
@@ -96,12 +77,19 @@ func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
 	var (
 		invalidMetricTypeError  *entities.InvalidMetricTypeError
 		metricNameNotFoundError *entities.MetricNameNotFoundError
+		jsonRequestDecodeError  *entities.JsonRequestDecodeError
 	)
 	switch {
+	case errors.Is(err, entities.ErrJsonRequestExpected):
+		http.Error(res, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, entities.ErrEmptyMetricName):
+		http.NotFound(res, req)
 	case errors.As(err, &invalidMetricTypeError):
 		http.NotFound(res, req)
 	case errors.As(err, &metricNameNotFoundError):
 		http.NotFound(res, req)
+	case errors.As(err, &jsonRequestDecodeError):
+		http.Error(res, err.Error(), http.StatusBadRequest)
 	default:
 		// unexpected error
 		http.Error(res, err.Error(), http.StatusInternalServerError)

@@ -4,63 +4,92 @@ import (
 	"encoding/json"
 	"io"
 	"sync"
+
+	"github.com/PiskarevSA/go-advanced/internal/entities"
 )
 
 type MemStorage struct {
 	mutex sync.RWMutex
 
-	GaugeMap   map[string]float64 `json:"gauge"`
-	CounterMap map[string]int64   `json:"counter"`
+	GaugeMap   map[entities.MetricName]entities.Gauge   `json:"gauge"`
+	CounterMap map[entities.MetricName]entities.Counter `json:"counter"`
 }
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		GaugeMap:   make(map[string]float64),
-		CounterMap: make(map[string]int64),
+		GaugeMap:   make(map[entities.MetricName]entities.Gauge),
+		CounterMap: make(map[entities.MetricName]entities.Counter),
 	}
 }
 
-func (m *MemStorage) SetGauge(key string, value float64) {
+func (m *MemStorage) Get(metric entities.Metric) (*entities.Metric, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	if metric.IsGauge {
+		value, exists := m.GaugeMap[metric.Name]
+		if !exists {
+			return nil, entities.NewMetricNameNotFoundError(metric.Name)
+		}
+		result := entities.Metric{
+			IsGauge: true,
+			Name:    metric.Name,
+			Value:   value,
+			Delta:   0,
+		}
+		return &result, nil
+	} else {
+		delta, exists := m.CounterMap[metric.Name]
+		if !exists {
+			return nil, entities.NewMetricNameNotFoundError(metric.Name)
+		}
+		result := entities.Metric{
+			IsGauge: false,
+			Name:    metric.Name,
+			Value:   0,
+			Delta:   delta,
+		}
+		return &result, nil
+	}
+}
+
+func (m *MemStorage) Update(metric entities.Metric) (*entities.Metric, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	m.GaugeMap[key] = value
+	if metric.IsGauge {
+		m.GaugeMap[metric.Name] = metric.Value
+
+		result := entities.Metric{
+			IsGauge: true,
+			Name:    metric.Name,
+			Value:   m.GaugeMap[metric.Name],
+			Delta:   0,
+		}
+		return &result, nil
+	} else {
+		m.CounterMap[metric.Name] += metric.Delta
+
+		result := entities.Metric{
+			IsGauge: false,
+			Name:    metric.Name,
+			Value:   0,
+			Delta:   m.CounterMap[metric.Name],
+		}
+		return &result, nil
+	}
 }
 
-func (m *MemStorage) Gauge(key string) (value float64, exists bool) {
+func (m *MemStorage) Dump() (gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	value, exists = m.GaugeMap[key]
-	return
-}
-
-func (m *MemStorage) IncreaseCounter(key string, delta int64) int64 {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	m.CounterMap[key] += delta
-	return m.CounterMap[key]
-}
-
-func (m *MemStorage) Counter(key string) (value int64, exists bool) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	value, exists = m.CounterMap[key]
-	return
-}
-
-func (m *MemStorage) Dump() (gauge map[string]float64, counter map[string]int64) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	gauge = make(map[string]float64)
+	gauge = make(map[entities.MetricName]entities.Gauge)
 	for k, v := range m.GaugeMap {
 		gauge[k] = v
 	}
 
-	counter = make(map[string]int64)
+	counter = make(map[entities.MetricName]entities.Counter)
 	for k, v := range m.CounterMap {
 		counter[k] = v
 	}
