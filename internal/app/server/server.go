@@ -100,6 +100,7 @@ func (s *Server) loadMetrics() {
 		slog.Error("[main] open metrics file", "error", err.Error())
 		return
 	}
+	defer file.Close()
 	err = s.usecase.LoadMetrics(file)
 	if err != nil {
 		slog.Error("[main] load metrics file", "error", err.Error())
@@ -115,6 +116,7 @@ func (s *Server) storeMetrics(caller string) {
 		slog.Error(msg, "error", err.Error())
 		return
 	}
+	defer file.Close()
 	err = s.usecase.StoreMetrics(file)
 	if err != nil {
 		msg := fmt.Sprintf("[%v] store metrics file", caller)
