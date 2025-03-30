@@ -14,7 +14,7 @@ const (
 	UpdateFromURLPattern  = `/update/{type}/{name}/{value}`
 )
 
-type UpdaterUsecase interface {
+type metricUpdater interface {
 	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
 }
 
@@ -22,7 +22,7 @@ type UpdaterUsecase interface {
 // request type: "application/json", body: models.Metric
 // response	type: "application/json", body: models.Metric
 type UpdateFromJSONHandler struct {
-	Updater UpdaterUsecase
+	Updater metricUpdater
 }
 
 func (h *UpdateFromJSONHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -53,7 +53,7 @@ func (h *UpdateFromJSONHandler) ServeHTTP(res http.ResponseWriter, req *http.Req
 // request: none
 // response	type: "text/plain; charset=utf-8", body: none
 type UpdateFromURLHandler struct {
-	Updater UpdaterUsecase
+	Updater metricUpdater
 }
 
 func (h *UpdateFromURLHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {

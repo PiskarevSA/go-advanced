@@ -15,7 +15,7 @@ const (
 	GetAsTextPattern = `/value/{type}/{name}`
 )
 
-type GetterUsecase interface {
+type metricGetter interface {
 	GetMetric(metric entities.Metric) (*entities.Metric, error)
 }
 
@@ -23,7 +23,7 @@ type GetterUsecase interface {
 // request type: "application/json", body: models.Metric
 // response	type: "application/json", body: models.Metric
 type GetAsJSONHandler struct {
-	Getter GetterUsecase
+	Getter metricGetter
 }
 
 func (h *GetAsJSONHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -56,7 +56,7 @@ func (h *GetAsJSONHandler) ServeHTTP(res http.ResponseWriter, req *http.Request)
 // request: none
 // response type: "text/plain; charset=utf-8", body: metric value as string
 type GetAsTextHandler struct {
-	Getter GetterUsecase
+	Getter metricGetter
 }
 
 func (h *GetAsTextHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {

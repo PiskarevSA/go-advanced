@@ -31,7 +31,7 @@ const (
 		</tr>`
 )
 
-type DumperUsecase interface {
+type merticsDumper interface {
 	DumpIterator() func() (type_ string, name string, value string, exists bool)
 }
 
@@ -39,7 +39,7 @@ type DumperUsecase interface {
 // request: none
 // response	type: "text/html", body: html document containing dumped metrics
 type MainPageHandler struct {
-	Dumper DumperUsecase
+	Dumper merticsDumper
 }
 
 func (h *MainPageHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {

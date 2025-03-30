@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type Usecase interface {
+type usecase interface {
 	GetMetric(metric entities.Metric) (*entities.Metric, error)
 	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
 	DumpIterator() func() (type_ string, name string, value string, exists bool)
@@ -16,17 +16,17 @@ type Usecase interface {
 
 type MetricsRouter struct {
 	chi.Router
-	usecase Usecase
+	usecase usecase
 }
 
-func NewMetricsRouter(usecase Usecase) *MetricsRouter {
+func NewMetricsRouter(usecase usecase) *MetricsRouter {
 	return &MetricsRouter{
 		Router:  chi.NewRouter(),
 		usecase: usecase,
 	}
 }
 
-func (r *MetricsRouter) WithMiddleWares(middlewares ...func(http.Handler) http.Handler) *MetricsRouter {
+func (r *MetricsRouter) WithMiddlewares(middlewares ...func(http.Handler) http.Handler) *MetricsRouter {
 	r.Router = r.Router.With(middlewares...)
 	return r
 }
