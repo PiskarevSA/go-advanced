@@ -129,7 +129,9 @@ func (s *Server) storeMetrics(caller string) {
 }
 
 func (s *Server) createServer() *http.Server {
-	r := MetricsRouter(s.usecase, middleware.Summary, middleware.Encoding)
+	r := NewMetricsRouter(s.usecase).
+		WithMiddleWares(middleware.Summary, middleware.Encoding).
+		WithAllHandlers()
 	server := http.Server{
 		Addr: s.config.ServerAddress,
 	}

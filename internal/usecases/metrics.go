@@ -9,9 +9,9 @@ import (
 )
 
 type Storage interface {
-	Get(metric entities.Metric) (*entities.Metric, error)
-	Update(metric entities.Metric) (*entities.Metric, error)
-	Dump() (gauge map[entities.MetricName]entities.Gauge,
+	GetMetric(metric entities.Metric) (*entities.Metric, error)
+	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
+	GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge,
 		counter map[entities.MetricName]entities.Counter)
 	Load(r io.Reader) error
 	Store(w io.Writer) error
@@ -79,16 +79,16 @@ func NewMetricsUsecase(storage Storage) *MetricsUsecase {
 	}
 }
 
-func (m *MetricsUsecase) Get(metric entities.Metric) (*entities.Metric, error) {
-	return m.storage.Get(metric)
+func (m *MetricsUsecase) GetMetric(metric entities.Metric) (*entities.Metric, error) {
+	return m.storage.GetMetric(metric)
 }
 
-func (m *MetricsUsecase) Update(metric entities.Metric) (*entities.Metric, error) {
-	return m.storage.Update(metric)
+func (m *MetricsUsecase) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
+	return m.storage.UpdateMetric(metric)
 }
 
 func (m *MetricsUsecase) DumpIterator() func() (type_ string, name string, value string, exists bool) {
-	gauge, counter := m.storage.Dump()
+	gauge, counter := m.storage.GetMetricsByTypes()
 
 	iteratableDump := NewIteratableDump(gauge, counter)
 	return iteratableDump.NextMetric

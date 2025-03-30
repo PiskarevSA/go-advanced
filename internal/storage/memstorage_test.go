@@ -96,7 +96,7 @@ func TestMemStorage_Get(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response, err := filledMemStorage().Get(tt.given.argMetric)
+			response, err := filledMemStorage().GetMetric(tt.given.argMetric)
 			assert.Equal(t, tt.want.argResponse, response)
 			assert.Equal(t, err, tt.want.argError)
 		})
@@ -191,7 +191,7 @@ func TestMemStorage_Update(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response, err := filledMemStorage().Update(tt.given.argMetric)
+			response, err := filledMemStorage().UpdateMetric(tt.given.argMetric)
 			assert.Equal(t, tt.want.argResponse, response)
 			assert.Equal(t, err, tt.want.argError)
 		})

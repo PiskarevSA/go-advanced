@@ -9,57 +9,66 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/handlers/validation"
 )
 
-type Updater interface {
-	Update(metric entities.Metric) (*entities.Metric, error)
+const (
+	UpdateFromJSONPattern = `/update/`
+	UpdateFromURLPattern  = `/update/{type}/{name}/{value}`
+)
+
+type UpdaterUsecase interface {
+	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
 }
 
-// POST /update
-// - req: "application/json", body: models.Metric
-// - res: "application/json", body: models.Metric
-func UpdateFromJSON(updater Updater) func(res http.ResponseWriter, req *http.Request) {
-	return func(res http.ResponseWriter, req *http.Request) {
-		validMetric, err := validation.ValidateMetricFromUpdateFromJSONRequest(req)
-		if err != nil {
-			handleUpdateError(err, res, req)
-			return
-		}
+// UpdateFromJSONHandler handles endpoint: POST /update
+// request type: "application/json", body: models.Metric
+// response	type: "application/json", body: models.Metric
+type UpdateFromJSONHandler struct {
+	Updater UpdaterUsecase
+}
 
-		updatedMetric, err := updater.Update(*validMetric)
-		if err != nil {
-			handleUpdateError(err, res, req)
-			return
-		}
-		// success
-		response, err := validation.MakeResponseFromEntityMetric(*updatedMetric)
-		if err != nil {
-			handleUpdateError(err, res, req)
-		}
-		res.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(res).Encode(response); err != nil {
-			http.Error(res, err.Error(), http.StatusInternalServerError)
-			return
-		}
+func (h *UpdateFromJSONHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	validMetric, err := validation.ValidateMetricFromUpdateFromJSONRequest(req)
+	if err != nil {
+		handleUpdateError(err, res, req)
+		return
+	}
+
+	updatedMetric, err := h.Updater.UpdateMetric(*validMetric)
+	if err != nil {
+		handleUpdateError(err, res, req)
+		return
+	}
+	// success
+	response, err := validation.MakeResponseFromEntityMetric(*updatedMetric)
+	if err != nil {
+		handleUpdateError(err, res, req)
+	}
+	res.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(res).Encode(response); err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
-// POST "text/plain" /update/{type}/{name}/{value}
-// - req: body: none
-// - res: "text/plain; charset=utf-8", body: none
-func UpdateFromURL(updater Updater) func(res http.ResponseWriter, req *http.Request) {
-	return func(res http.ResponseWriter, req *http.Request) {
-		validMetric, err := validation.ValidateMetricFromUpdateFromURLRequest(req)
-		if err != nil {
-			handleUpdateError(err, res, req)
-			return
-		}
+// UpdateFromURLHandler handles endpoint: POST /update/{type}/{name}/{value}
+// request: none
+// response	type: "text/plain; charset=utf-8", body: none
+type UpdateFromURLHandler struct {
+	Updater UpdaterUsecase
+}
 
-		if _, err := updater.Update(*validMetric); err != nil {
-			handleUpdateError(err, res, req)
-			return
-		}
-		// success
-		res.Header().Set("Content-Type", "text/plain; charset=utf-8")
+func (h *UpdateFromURLHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	validMetric, err := validation.ValidateMetricFromUpdateFromURLRequest(req)
+	if err != nil {
+		handleUpdateError(err, res, req)
+		return
 	}
+
+	if _, err := h.Updater.UpdateMetric(*validMetric); err != nil {
+		handleUpdateError(err, res, req)
+		return
+	}
+	// success
+	res.Header().Set("Content-Type", "text/plain; charset=utf-8")
 }
 
 func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {

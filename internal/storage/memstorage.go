@@ -22,7 +22,7 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
-func (m *MemStorage) Get(metric entities.Metric) (*entities.Metric, error) {
+func (m *MemStorage) GetMetric(metric entities.Metric) (*entities.Metric, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
@@ -56,7 +56,7 @@ func (m *MemStorage) Get(metric entities.Metric) (*entities.Metric, error) {
 		"unexpected internal metric type: " + metric.Type.String())
 }
 
-func (m *MemStorage) Update(metric entities.Metric) (*entities.Metric, error) {
+func (m *MemStorage) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -86,7 +86,7 @@ func (m *MemStorage) Update(metric entities.Metric) (*entities.Metric, error) {
 		"unexpected internal metric type: " + metric.Type.String())
 }
 
-func (m *MemStorage) Dump() (gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) {
+func (m *MemStorage) GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 

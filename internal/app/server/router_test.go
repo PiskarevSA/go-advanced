@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockGetArgs struct {
+type mockGetMetricArgs struct {
 	// input
 	metric entities.Metric
 	// output
@@ -20,7 +20,7 @@ type mockGetArgs struct {
 	err    error
 }
 
-type mockUpdateArgs struct {
+type mockUpdateMetricArgs struct {
 	// input
 	metric entities.Metric
 	// output
@@ -45,17 +45,17 @@ func (m *mockUsecase) expectCall(mockCallParams any) *mockUsecase {
 	return m
 }
 
-func (m *mockUsecase) Get(metric entities.Metric) (*entities.Metric, error) {
+func (m *mockUsecase) GetMetric(metric entities.Metric) (*entities.Metric, error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
-	args := m.mockCallParams[m.callIndex].(mockGetArgs)
+	args := m.mockCallParams[m.callIndex].(mockGetMetricArgs)
 	assert.Equal(m.t, args.metric, metric)
 	m.callIndex += 1
 	return args.result, args.err
 }
 
-func (m *mockUsecase) Update(metric entities.Metric) (*entities.Metric, error) {
+func (m *mockUsecase) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
-	args := m.mockCallParams[m.callIndex].(mockUpdateArgs)
+	args := m.mockCallParams[m.callIndex].(mockUpdateMetricArgs)
 	assert.Equal(m.t, args.metric, metric)
 	m.callIndex += 1
 	return args.result, args.err
@@ -124,7 +124,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/update/",
 				body:   `{"id":"foo","type":"gauge","value":1.23}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockUpdateArgs{
+					expectCall(mockUpdateMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type:  entities.MetricTypeGauge,
@@ -153,7 +153,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/update/",
 				body:   `{"id":"bar","type":"counter","delta":456}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockUpdateArgs{
+					expectCall(mockUpdateMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type:  entities.MetricTypeCounter,
@@ -280,7 +280,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/value/",
 				body:   `{"id":"foo","type":"gauge"}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockGetArgs{
+					expectCall(mockGetMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type: entities.MetricTypeGauge,
@@ -308,7 +308,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/value/",
 				body:   `{"id":"bar","type":"counter"}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockGetArgs{
+					expectCall(mockGetMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type: entities.MetricTypeCounter,
@@ -363,7 +363,7 @@ func TestMetricsRouterJSON(t *testing.T) {
 				url:    "/value/",
 				body:   `{"id":"foo","type":"gauge"}`,
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockGetArgs{
+					expectCall(mockGetMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type: entities.MetricTypeGauge,
@@ -388,7 +388,8 @@ func TestMetricsRouterJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ts := httptest.NewServer(MetricsRouter(tt.given.mockUsecase))
+			r := NewMetricsRouter(tt.given.mockUsecase).WithAllHandlers()
+			ts := httptest.NewServer(r)
 			defer ts.Close()
 
 			respCode, respContentType, respBody := testRequestJSON(
@@ -425,7 +426,7 @@ func TestMetricsRouter(t *testing.T) {
 				method: http.MethodPost,
 				url:    "/update/gauge/foo/1.23",
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockUpdateArgs{
+					expectCall(mockUpdateMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type:  entities.MetricTypeGauge,
@@ -453,7 +454,7 @@ func TestMetricsRouter(t *testing.T) {
 				method: http.MethodPost,
 				url:    "/update/counter/bar/456",
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockUpdateArgs{
+					expectCall(mockUpdateMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type:  entities.MetricTypeCounter,
@@ -559,7 +560,7 @@ func TestMetricsRouter(t *testing.T) {
 				method: http.MethodGet,
 				url:    "/value/gauge/foo",
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockGetArgs{
+					expectCall(mockGetMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type: entities.MetricTypeGauge,
@@ -586,7 +587,7 @@ func TestMetricsRouter(t *testing.T) {
 				method: http.MethodGet,
 				url:    "/value/counter/bar",
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockGetArgs{
+					expectCall(mockGetMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type: entities.MetricTypeCounter,
@@ -639,7 +640,7 @@ func TestMetricsRouter(t *testing.T) {
 				method: http.MethodGet,
 				url:    "/value/gauge/foo",
 				mockUsecase: newMockUsecase(t).
-					expectCall(mockGetArgs{
+					expectCall(mockGetMetricArgs{
 						// input
 						metric: entities.Metric{
 							Type: entities.MetricTypeGauge,
@@ -660,7 +661,8 @@ func TestMetricsRouter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ts := httptest.NewServer(MetricsRouter(tt.given.mockUsecase))
+			r := NewMetricsRouter(tt.given.mockUsecase).WithAllHandlers()
+			ts := httptest.NewServer(r)
 			defer ts.Close()
 
 			respCode, respContentType, respBody := testRequest(

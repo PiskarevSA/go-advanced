@@ -6,6 +6,10 @@ import (
 )
 
 const (
+	MainPagePattern = `/`
+)
+
+const (
 	docTemplate = `<!DOCTYPE html>
 <title>Metrics</title>
 <body>
@@ -27,30 +31,34 @@ const (
 		</tr>`
 )
 
-type Dumper interface {
+type DumperUsecase interface {
 	DumpIterator() func() (type_ string, name string, value string, exists bool)
 }
 
-// GET /
-func MainPage(dumper Dumper) func(res http.ResponseWriter, req *http.Request) {
-	return func(res http.ResponseWriter, req *http.Request) {
-		metricsIterator := dumper.DumpIterator()
+// MainPageHandler handles endpoint: GET /
+// request: none
+// response	type: "text/html", body: html document containing dumped metrics
+type MainPageHandler struct {
+	Dumper DumperUsecase
+}
 
-		var rows string
-		for {
-			type_, name, value, exists := metricsIterator()
-			if !exists {
-				break
-			}
-			rows += fmt.Sprintf(rowTemplate, type_, name, value)
+func (h *MainPageHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	metricsIterator := h.Dumper.DumpIterator()
+
+	var rows string
+	for {
+		type_, name, value, exists := metricsIterator()
+		if !exists {
+			break
 		}
+		rows += fmt.Sprintf(rowTemplate, type_, name, value)
+	}
 
-		doc := fmt.Sprintf(docTemplate, rows)
+	doc := fmt.Sprintf(docTemplate, rows)
 
-		res.Header().Set("Content-Type", "text/html")
-		_, err := res.Write([]byte(doc))
-		if err != nil {
-			http.Error(res, err.Error(), http.StatusInternalServerError)
-		}
+	res.Header().Set("Content-Type", "text/html")
+	_, err := res.Write([]byte(doc))
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
 	}
 }
