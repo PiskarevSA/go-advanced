@@ -32,7 +32,11 @@ func GetAsJSON(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 		}
 
 		// success
-		response := validation.MakeResponseFromEntityMetric(*responseMetric)
+		response, err := validation.MakeResponseFromEntityMetric(*responseMetric)
+		if err != nil {
+			handleGetterError(err, res, req)
+			return
+		}
 		res.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(res).Encode(response); err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
@@ -59,14 +63,22 @@ func GetAsText(getter Getter) func(res http.ResponseWriter, req *http.Request) {
 
 		// success
 		var response string
-		if responseMetric.IsGauge {
+		switch responseMetric.Type {
+		case entities.MetricTypeGauge:
 			response = fmt.Sprint(responseMetric.Value)
-		} else {
+		case entities.MetricTypeCounter:
 			response = fmt.Sprint(responseMetric.Delta)
+		default:
+			err := entities.NewInternalError(
+				"unexpected internal metric type: " + responseMetric.Type.String())
+			handleGetterError(err, res, req)
+			return
 		}
 		_, err = res.Write([]byte(response))
 		if err != nil {
-			http.Error(res, err.Error(), http.StatusInternalServerError)
+			err := entities.NewInternalError(
+				"response writing error: " + responseMetric.Type.String())
+			handleGetterError(err, res, req)
 			return
 		}
 		res.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -78,6 +90,7 @@ func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
 		invalidMetricTypeError  *entities.InvalidMetricTypeError
 		metricNameNotFoundError *entities.MetricNameNotFoundError
 		jsonRequestDecodeError  *entities.JSONRequestDecodeError
+		internalError           *entities.InternalError
 	)
 	switch {
 	case errors.Is(err, entities.ErrJSONRequestExpected):
@@ -90,6 +103,8 @@ func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
 		http.NotFound(res, req)
 	case errors.As(err, &jsonRequestDecodeError):
 		http.Error(res, err.Error(), http.StatusBadRequest)
+	case errors.As(err, &internalError):
+		http.Error(res, err.Error(), http.StatusInternalServerError)
 	default:
 		// unexpected error
 		http.Error(res, err.Error(), http.StatusInternalServerError)

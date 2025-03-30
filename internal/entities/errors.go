@@ -73,3 +73,16 @@ func (e *JSONRequestDecodeError) Error() string {
 func (e *JSONRequestDecodeError) Unwrap() error {
 	return e.error
 }
+
+// .. InternalError
+type InternalError struct {
+	message string
+}
+
+func NewInternalError(message string) *InternalError {
+	return &InternalError{message: message}
+}
+
+func (e *InternalError) Error() string {
+	return fmt.Sprintf("internal error: %s", e.message)
+}

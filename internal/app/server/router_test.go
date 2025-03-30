@@ -127,15 +127,15 @@ func TestMetricsRouterJSON(t *testing.T) {
 					expectCall(mockUpdateArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
-							Value:   1.23,
+							Type:  entities.MetricTypeGauge,
+							Name:  "foo",
+							Value: 1.23,
 						},
 						// output
 						result: &entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
-							Value:   1.23,
+							Type:  entities.MetricTypeGauge,
+							Name:  "foo",
+							Value: 1.23,
 						},
 						err: nil,
 					}),
@@ -156,15 +156,15 @@ func TestMetricsRouterJSON(t *testing.T) {
 					expectCall(mockUpdateArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: false,
-							Name:    "bar",
-							Delta:   456,
+							Type:  entities.MetricTypeCounter,
+							Name:  "bar",
+							Delta: 456,
 						},
 						// output
 						result: &entities.Metric{
-							IsGauge: false,
-							Name:    "bar",
-							Delta:   456,
+							Type:  entities.MetricTypeCounter,
+							Name:  "bar",
+							Delta: 456,
 						},
 						err: nil,
 					}),
@@ -283,14 +283,14 @@ func TestMetricsRouterJSON(t *testing.T) {
 					expectCall(mockGetArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
+							Type: entities.MetricTypeGauge,
+							Name: "foo",
 						},
 						// output
 						result: &entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
-							Value:   1.23,
+							Type:  entities.MetricTypeGauge,
+							Name:  "foo",
+							Value: 1.23,
 						},
 						err: nil,
 					}),
@@ -311,14 +311,14 @@ func TestMetricsRouterJSON(t *testing.T) {
 					expectCall(mockGetArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: false,
-							Name:    "bar",
+							Type: entities.MetricTypeCounter,
+							Name: "bar",
 						},
 						// output
 						result: &entities.Metric{
-							IsGauge: false,
-							Name:    "bar",
-							Delta:   456,
+							Type:  entities.MetricTypeCounter,
+							Name:  "bar",
+							Delta: 456,
 						},
 						err: nil,
 					}),
@@ -366,14 +366,14 @@ func TestMetricsRouterJSON(t *testing.T) {
 					expectCall(mockGetArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
+							Type: entities.MetricTypeGauge,
+							Name: "foo",
 						},
 						// output
 						result: &entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
-							Value:   0,
+							Type:  entities.MetricTypeGauge,
+							Name:  "foo",
+							Value: 0,
 						},
 						err: entities.NewMetricNameNotFoundError("foo"),
 					}),
@@ -428,15 +428,15 @@ func TestMetricsRouter(t *testing.T) {
 					expectCall(mockUpdateArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
-							Value:   1.23,
+							Type:  entities.MetricTypeGauge,
+							Name:  "foo",
+							Value: 1.23,
 						},
 						// output
 						result: &entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
-							Value:   1.23,
+							Type:  entities.MetricTypeGauge,
+							Name:  "foo",
+							Value: 1.23,
 						},
 						err: nil,
 					}),
@@ -456,15 +456,15 @@ func TestMetricsRouter(t *testing.T) {
 					expectCall(mockUpdateArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: false,
-							Name:    "bar",
-							Delta:   456,
+							Type:  entities.MetricTypeCounter,
+							Name:  "bar",
+							Delta: 456,
 						},
 						// output
 						result: &entities.Metric{
-							IsGauge: false,
-							Name:    "bar",
-							Delta:   456,
+							Type:  entities.MetricTypeCounter,
+							Name:  "bar",
+							Delta: 456,
 						},
 						err: nil,
 					}),
@@ -562,14 +562,14 @@ func TestMetricsRouter(t *testing.T) {
 					expectCall(mockGetArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
+							Type: entities.MetricTypeGauge,
+							Name: "foo",
 						},
 						// output
 						result: &entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
-							Value:   1.23,
+							Type:  entities.MetricTypeGauge,
+							Name:  "foo",
+							Value: 1.23,
 						},
 						err: nil,
 					}),
@@ -589,14 +589,14 @@ func TestMetricsRouter(t *testing.T) {
 					expectCall(mockGetArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: false,
-							Name:    "bar",
+							Type: entities.MetricTypeCounter,
+							Name: "bar",
 						},
 						// output
 						result: &entities.Metric{
-							IsGauge: false,
-							Name:    "bar",
-							Delta:   456,
+							Type:  entities.MetricTypeCounter,
+							Name:  "bar",
+							Delta: 456,
 						},
 						err: nil,
 					}),
@@ -642,8 +642,8 @@ func TestMetricsRouter(t *testing.T) {
 					expectCall(mockGetArgs{
 						// input
 						metric: entities.Metric{
-							IsGauge: true,
-							Name:    "foo",
+							Type: entities.MetricTypeGauge,
+							Name: "foo",
 						},
 						// output
 						result: nil,

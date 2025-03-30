@@ -37,15 +37,15 @@ func TestMemStorage_Get(t *testing.T) {
 			name: "get existing gauge",
 			given: given{
 				argMetric: entities.Metric{
-					IsGauge: true,
-					Name:    "Gauge2",
+					Type: entities.MetricTypeGauge,
+					Name: "Gauge2",
 				},
 			},
 			want: want{
 				argResponse: &entities.Metric{
-					IsGauge: true,
-					Name:    "Gauge2",
-					Value:   2.22,
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge2",
+					Value: 2.22,
 				},
 				argError: nil,
 			},
@@ -54,8 +54,8 @@ func TestMemStorage_Get(t *testing.T) {
 			name: "get non-existing gauge",
 			given: given{
 				argMetric: entities.Metric{
-					IsGauge: true,
-					Name:    "Gauge3",
+					Type: entities.MetricTypeGauge,
+					Name: "Gauge3",
 				},
 			},
 			want: want{
@@ -67,15 +67,15 @@ func TestMemStorage_Get(t *testing.T) {
 			name: "get existing counter",
 			given: given{
 				argMetric: entities.Metric{
-					IsGauge: false,
-					Name:    "Counter2",
+					Type: entities.MetricTypeCounter,
+					Name: "Counter2",
 				},
 			},
 			want: want{
 				argResponse: &entities.Metric{
-					IsGauge: false,
-					Name:    "Counter2",
-					Delta:   222,
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter2",
+					Delta: 222,
 				},
 				argError: nil,
 			},
@@ -84,8 +84,8 @@ func TestMemStorage_Get(t *testing.T) {
 			name: "get non-existing counter",
 			given: given{
 				argMetric: entities.Metric{
-					IsGauge: false,
-					Name:    "Counter3",
+					Type: entities.MetricTypeCounter,
+					Name: "Counter3",
 				},
 			},
 			want: want{
@@ -120,16 +120,16 @@ func TestMemStorage_Update(t *testing.T) {
 			name: "add gauge",
 			given: given{
 				argMetric: entities.Metric{
-					IsGauge: true,
-					Name:    "Gauge3",
-					Value:   3.33,
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge3",
+					Value: 3.33,
 				},
 			},
 			want: want{
 				argResponse: &entities.Metric{
-					IsGauge: true,
-					Name:    "Gauge3",
-					Value:   3.33,
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge3",
+					Value: 3.33,
 				},
 				argError: nil,
 			},
@@ -138,16 +138,16 @@ func TestMemStorage_Update(t *testing.T) {
 			name: "replace gauge",
 			given: given{
 				argMetric: entities.Metric{
-					IsGauge: true,
-					Name:    "Gauge2",
-					Value:   22.22,
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge2",
+					Value: 22.22,
 				},
 			},
 			want: want{
 				argResponse: &entities.Metric{
-					IsGauge: true,
-					Name:    "Gauge2",
-					Value:   22.22,
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge2",
+					Value: 22.22,
 				},
 				argError: nil,
 			},
@@ -156,16 +156,16 @@ func TestMemStorage_Update(t *testing.T) {
 			name: "add counter",
 			given: given{
 				argMetric: entities.Metric{
-					IsGauge: false,
-					Name:    "Counter3",
-					Delta:   333,
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter3",
+					Delta: 333,
 				},
 			},
 			want: want{
 				argResponse: &entities.Metric{
-					IsGauge: false,
-					Name:    "Counter3",
-					Delta:   333,
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter3",
+					Delta: 333,
 				},
 				argError: nil,
 			},
@@ -174,16 +174,16 @@ func TestMemStorage_Update(t *testing.T) {
 			name: "increase counter",
 			given: given{
 				argMetric: entities.Metric{
-					IsGauge: false,
-					Name:    "Counter2",
-					Delta:   2000,
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter2",
+					Delta: 2000,
 				},
 			},
 			want: want{
 				argResponse: &entities.Metric{
-					IsGauge: false,
-					Name:    "Counter2",
-					Delta:   2222,
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter2",
+					Delta: 2222,
 				},
 				argError: nil,
 			},

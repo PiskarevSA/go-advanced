@@ -30,7 +30,10 @@ func UpdateFromJSON(updater Updater) func(res http.ResponseWriter, req *http.Req
 			return
 		}
 		// success
-		response := validation.MakeResponseFromEntityMetric(*updatedMetric)
+		response, err := validation.MakeResponseFromEntityMetric(*updatedMetric)
+		if err != nil {
+			handleUpdateError(err, res, req)
+		}
 		res.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(res).Encode(response); err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)
@@ -64,6 +67,7 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 		invalidMetricTypeError     *entities.InvalidMetricTypeError
 		metricValueIsNotValidError *entities.MetricValueIsNotValidError
 		jsonRequestDecodeError     *entities.JSONRequestDecodeError
+		internalError              *entities.InternalError
 	)
 	// incorrect metric type should return http.StatusBadRequest
 	switch {
@@ -81,6 +85,8 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	case errors.As(err, &jsonRequestDecodeError):
 		http.Error(res, err.Error(), http.StatusBadRequest)
+	case errors.As(err, &internalError):
+		http.Error(res, err.Error(), http.StatusInternalServerError)
 	default:
 		// unexpected error
 		http.Error(res, err.Error(), http.StatusInternalServerError)

@@ -26,58 +26,64 @@ func (m *MemStorage) Get(metric entities.Metric) (*entities.Metric, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	if metric.IsGauge {
+	switch metric.Type {
+	case entities.MetricTypeGauge:
 		value, exists := m.GaugeMap[metric.Name]
 		if !exists {
 			return nil, entities.NewMetricNameNotFoundError(metric.Name)
 		}
 		result := entities.Metric{
-			IsGauge: true,
-			Name:    metric.Name,
-			Value:   value,
-			Delta:   0,
+			Type:  metric.Type,
+			Name:  metric.Name,
+			Value: value,
+			Delta: 0,
 		}
 		return &result, nil
-	} else {
+	case entities.MetricTypeCounter:
 		delta, exists := m.CounterMap[metric.Name]
 		if !exists {
 			return nil, entities.NewMetricNameNotFoundError(metric.Name)
 		}
 		result := entities.Metric{
-			IsGauge: false,
-			Name:    metric.Name,
-			Value:   0,
-			Delta:   delta,
+			Type:  metric.Type,
+			Name:  metric.Name,
+			Value: 0,
+			Delta: delta,
 		}
 		return &result, nil
 	}
+	return nil, entities.NewInternalError(
+		"unexpected internal metric type: " + metric.Type.String())
 }
 
 func (m *MemStorage) Update(metric entities.Metric) (*entities.Metric, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if metric.IsGauge {
+	switch metric.Type {
+	case entities.MetricTypeGauge:
 		m.GaugeMap[metric.Name] = metric.Value
 
 		result := entities.Metric{
-			IsGauge: true,
-			Name:    metric.Name,
-			Value:   m.GaugeMap[metric.Name],
-			Delta:   0,
+			Type:  metric.Type,
+			Name:  metric.Name,
+			Value: m.GaugeMap[metric.Name],
+			Delta: 0,
 		}
 		return &result, nil
-	} else {
+	case entities.MetricTypeCounter:
 		m.CounterMap[metric.Name] += metric.Delta
 
 		result := entities.Metric{
-			IsGauge: false,
-			Name:    metric.Name,
-			Value:   0,
-			Delta:   m.CounterMap[metric.Name],
+			Type:  metric.Type,
+			Name:  metric.Name,
+			Value: 0,
+			Delta: m.CounterMap[metric.Name],
 		}
 		return &result, nil
 	}
+	return nil, entities.NewInternalError(
+		"unexpected internal metric type: " + metric.Type.String())
 }
 
 func (m *MemStorage) Dump() (gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) {
