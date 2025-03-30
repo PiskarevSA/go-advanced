@@ -27,7 +27,7 @@ func NewMetricsRouter(usecase Usecase) *MetricsRouter {
 }
 
 func (r *MetricsRouter) WithMiddleWares(middlewares ...func(http.Handler) http.Handler) *MetricsRouter {
-	r.Router.With(middlewares...)
+	r.Router = r.Router.With(middlewares...)
 	return r
 }
 
