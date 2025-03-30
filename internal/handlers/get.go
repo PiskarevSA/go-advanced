@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
-	"github.com/PiskarevSA/go-advanced/internal/handlers/validation"
+	"github.com/PiskarevSA/go-advanced/internal/handlers/adapters"
 )
 
 const (
@@ -27,7 +27,7 @@ type GetAsJSONHandler struct {
 }
 
 func (h *GetAsJSONHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	validMetric, err := validation.ValidateMetricFromGetAsJSONRequest(req)
+	validMetric, err := adapters.ConvertMetricFromGetAsJSONRequest(req)
 	if err != nil {
 		handleGetterError(err, res, req)
 		return
@@ -40,7 +40,7 @@ func (h *GetAsJSONHandler) ServeHTTP(res http.ResponseWriter, req *http.Request)
 	}
 
 	// success
-	response, err := validation.MakeResponseFromEntityMetric(*responseMetric)
+	response, err := adapters.ConvertEntityMetric(*responseMetric)
 	if err != nil {
 		handleGetterError(err, res, req)
 		return
@@ -60,9 +60,9 @@ type GetAsTextHandler struct {
 }
 
 func (h *GetAsTextHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	validMetric, err := validation.ValidateMetricFromGetGetAsTextRequest(req)
+	validMetric, err := adapters.ConvertMetricFromGetGetAsTextRequest(req)
 	if err != nil {
-		handleUpdateError(err, res, req)
+		handleGetterError(err, res, req)
 		return
 	}
 

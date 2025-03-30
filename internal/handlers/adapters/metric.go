@@ -1,4 +1,4 @@
-package validation
+package adapters
 
 import (
 	"encoding/json"
@@ -19,7 +19,7 @@ const (
 	MetricTypeCounter MetricType = "counter"
 )
 
-func ValidateMetricFromGetAsJSONRequest(req *http.Request) (*entities.Metric, error) {
+func ConvertMetricFromGetAsJSONRequest(req *http.Request) (*entities.Metric, error) {
 	if req.Header.Get("Content-Type") != "application/json" {
 		return nil, entities.ErrJSONRequestExpected
 	}
@@ -28,16 +28,19 @@ func ValidateMetricFromGetAsJSONRequest(req *http.Request) (*entities.Metric, er
 		return nil, entities.NewJSONRequestDecodeError(err)
 	}
 	var result entities.Metric
-	if err := validateMetricType(&result, metric.MType); err != nil {
+	var err error
+	result.Type, err = convertMetricType(metric.MType)
+	if err != nil {
 		return nil, err
 	}
-	if err := validateMetricName(&result, metric.ID); err != nil {
+	result.Name, err = convertMetricName(metric.ID)
+	if err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func ValidateMetricFromUpdateFromJSONRequest(req *http.Request) (*entities.Metric, error) {
+func ConvertMetricFromUpdateFromJSONRequest(req *http.Request) (*entities.Metric, error) {
 	if req.Header.Get("Content-Type") != "application/json" {
 		return nil, entities.ErrJSONRequestExpected
 	}
@@ -46,10 +49,13 @@ func ValidateMetricFromUpdateFromJSONRequest(req *http.Request) (*entities.Metri
 		return nil, entities.NewJSONRequestDecodeError(err)
 	}
 	var result entities.Metric
-	if err := validateMetricType(&result, metric.MType); err != nil {
+	var err error
+	result.Type, err = convertMetricType(metric.MType)
+	if err != nil {
 		return nil, err
 	}
-	if err := validateMetricName(&result, metric.ID); err != nil {
+	result.Name, err = convertMetricName(metric.ID)
+	if err != nil {
 		return nil, err
 	}
 	switch result.Type {
@@ -70,30 +76,36 @@ func ValidateMetricFromUpdateFromJSONRequest(req *http.Request) (*entities.Metri
 	return &result, nil
 }
 
-func ValidateMetricFromGetGetAsTextRequest(req *http.Request) (*entities.Metric, error) {
+func ConvertMetricFromGetGetAsTextRequest(req *http.Request) (*entities.Metric, error) {
 	metricType := chi.URLParam(req, "type")
 	metricName := chi.URLParam(req, "name")
 
 	var result entities.Metric
-	if err := validateMetricType(&result, metricType); err != nil {
+	var err error
+	result.Type, err = convertMetricType(metricType)
+	if err != nil {
 		return nil, err
 	}
-	if err := validateMetricName(&result, metricName); err != nil {
+	result.Name, err = convertMetricName(metricName)
+	if err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func ValidateMetricFromUpdateFromURLRequest(req *http.Request) (*entities.Metric, error) {
+func ConvertMetricFromUpdateFromURLRequest(req *http.Request) (*entities.Metric, error) {
 	metricType := chi.URLParam(req, "type")
 	metricName := chi.URLParam(req, "name")
 	metricValue := chi.URLParam(req, "value")
 
 	var result entities.Metric
-	if err := validateMetricType(&result, metricType); err != nil {
+	var err error
+	result.Type, err = convertMetricType(metricType)
+	if err != nil {
 		return nil, err
 	}
-	if err := validateMetricName(&result, metricName); err != nil {
+	result.Name, err = convertMetricName(metricName)
+	if err != nil {
 		return nil, err
 	}
 	if len(metricValue) == 0 {
@@ -120,7 +132,7 @@ func ValidateMetricFromUpdateFromURLRequest(req *http.Request) (*entities.Metric
 	return &result, nil
 }
 
-func MakeResponseFromEntityMetric(metric entities.Metric) (*models.Metric, error) {
+func ConvertEntityMetric(metric entities.Metric) (*models.Metric, error) {
 	var result models.Metric
 	switch metric.Type {
 	case entities.MetricTypeGauge:
@@ -137,22 +149,19 @@ func MakeResponseFromEntityMetric(metric entities.Metric) (*models.Metric, error
 	return &result, nil
 }
 
-func validateMetricType(m *entities.Metric, metricType string) error {
+func convertMetricType(metricType string) (entities.MetricType, error) {
 	switch MetricType(metricType) {
 	case MetricTypeGauge:
-		m.Type = entities.MetricTypeGauge
-		return nil
+		return entities.MetricTypeGauge, nil
 	case MetricTypeCounter:
-		m.Type = entities.MetricTypeCounter
-		return nil
+		return entities.MetricTypeCounter, nil
 	}
-	return entities.NewInvalidMetricTypeError(metricType)
+	return entities.MetricTypeUndefined, entities.NewInvalidMetricTypeError(metricType)
 }
 
-func validateMetricName(m *entities.Metric, metricName string) error {
+func convertMetricName(metricName string) (entities.MetricName, error) {
 	if len(metricName) == 0 {
-		return entities.ErrEmptyMetricName
+		return "", entities.ErrEmptyMetricName
 	}
-	m.Name = entities.MetricName(metricName)
-	return nil
+	return entities.MetricName(metricName), nil
 }

@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
-	"github.com/PiskarevSA/go-advanced/internal/handlers/validation"
+	"github.com/PiskarevSA/go-advanced/internal/handlers/adapters"
 )
 
 const (
@@ -26,7 +26,7 @@ type UpdateFromJSONHandler struct {
 }
 
 func (h *UpdateFromJSONHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	validMetric, err := validation.ValidateMetricFromUpdateFromJSONRequest(req)
+	validMetric, err := adapters.ConvertMetricFromUpdateFromJSONRequest(req)
 	if err != nil {
 		handleUpdateError(err, res, req)
 		return
@@ -38,7 +38,7 @@ func (h *UpdateFromJSONHandler) ServeHTTP(res http.ResponseWriter, req *http.Req
 		return
 	}
 	// success
-	response, err := validation.MakeResponseFromEntityMetric(*updatedMetric)
+	response, err := adapters.ConvertEntityMetric(*updatedMetric)
 	if err != nil {
 		handleUpdateError(err, res, req)
 	}
@@ -57,7 +57,7 @@ type UpdateFromURLHandler struct {
 }
 
 func (h *UpdateFromURLHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	validMetric, err := validation.ValidateMetricFromUpdateFromURLRequest(req)
+	validMetric, err := adapters.ConvertMetricFromUpdateFromURLRequest(req)
 	if err != nil {
 		handleUpdateError(err, res, req)
 		return
