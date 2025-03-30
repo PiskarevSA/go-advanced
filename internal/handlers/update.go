@@ -63,11 +63,11 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 	var (
 		invalidMetricTypeError     *entities.InvalidMetricTypeError
 		metricValueIsNotValidError *entities.MetricValueIsNotValidError
-		jsonRequestDecodeError     *entities.JsonRequestDecodeError
+		jsonRequestDecodeError     *entities.JSONRequestDecodeError
 	)
 	// incorrect metric type should return http.StatusBadRequest
 	switch {
-	case errors.Is(err, entities.ErrJsonRequestExpected):
+	case errors.Is(err, entities.ErrJSONRequestExpected):
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	case errors.As(err, &invalidMetricTypeError):
 		http.Error(res, err.Error(), http.StatusBadRequest)

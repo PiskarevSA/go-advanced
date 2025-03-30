@@ -8,7 +8,7 @@ import (
 // stateless errors
 var (
 	ErrEmptyMetricName     = errors.New("empty metric name")
-	ErrJsonRequestExpected = errors.New("expected Content-Type=application/json")
+	ErrJSONRequestExpected = errors.New("expected Content-Type=application/json")
 	ErrMissingValue        = errors.New("missing value")
 	ErrMissingDelta        = errors.New("missing delta")
 )
@@ -57,19 +57,19 @@ func (e *MetricValueIsNotValidError) Unwrap() error {
 	return e.error
 }
 
-// .. JsonRequestDecodeError
-type JsonRequestDecodeError struct {
+// .. JSONRequestDecodeError
+type JSONRequestDecodeError struct {
 	error
 }
 
-func NewJsonRequestDecodeError(error error) *JsonRequestDecodeError {
-	return &JsonRequestDecodeError{error: error}
+func NewJSONRequestDecodeError(error error) *JSONRequestDecodeError {
+	return &JSONRequestDecodeError{error: error}
 }
 
-func (e *JsonRequestDecodeError) Error() string {
+func (e *JSONRequestDecodeError) Error() string {
 	return fmt.Sprintf("json request decoding: %s", e.error.Error())
 }
 
-func (e *JsonRequestDecodeError) Unwrap() error {
+func (e *JSONRequestDecodeError) Unwrap() error {
 	return e.error
 }

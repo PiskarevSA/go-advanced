@@ -77,10 +77,10 @@ func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
 	var (
 		invalidMetricTypeError  *entities.InvalidMetricTypeError
 		metricNameNotFoundError *entities.MetricNameNotFoundError
-		jsonRequestDecodeError  *entities.JsonRequestDecodeError
+		jsonRequestDecodeError  *entities.JSONRequestDecodeError
 	)
 	switch {
-	case errors.Is(err, entities.ErrJsonRequestExpected):
+	case errors.Is(err, entities.ErrJSONRequestExpected):
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, entities.ErrEmptyMetricName):
 		http.NotFound(res, req)

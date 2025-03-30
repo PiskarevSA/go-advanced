@@ -21,11 +21,11 @@ const (
 
 func ValidateMetricFromGetAsJSONRequest(req *http.Request) (*entities.Metric, error) {
 	if req.Header.Get("Content-Type") != "application/json" {
-		return nil, entities.ErrJsonRequestExpected
+		return nil, entities.ErrJSONRequestExpected
 	}
 	var metric models.Metric
 	if err := json.NewDecoder(req.Body).Decode(&metric); err != nil {
-		return nil, entities.NewJsonRequestDecodeError(err)
+		return nil, entities.NewJSONRequestDecodeError(err)
 	}
 	var result entities.Metric
 	if err := validateMetricType(&result, metric.MType); err != nil {
@@ -39,11 +39,11 @@ func ValidateMetricFromGetAsJSONRequest(req *http.Request) (*entities.Metric, er
 
 func ValidateMetricFromUpdateFromJSONRequest(req *http.Request) (*entities.Metric, error) {
 	if req.Header.Get("Content-Type") != "application/json" {
-		return nil, entities.ErrJsonRequestExpected
+		return nil, entities.ErrJSONRequestExpected
 	}
 	var metric models.Metric
 	if err := json.NewDecoder(req.Body).Decode(&metric); err != nil {
-		return nil, entities.NewJsonRequestDecodeError(err)
+		return nil, entities.NewJSONRequestDecodeError(err)
 	}
 	var result entities.Metric
 	if err := validateMetricType(&result, metric.MType); err != nil {
