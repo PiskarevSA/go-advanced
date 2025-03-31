@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/PiskarevSA/go-advanced/internal/handlers"
 	"github.com/PiskarevSA/go-advanced/internal/middleware"
 	"github.com/PiskarevSA/go-advanced/internal/storage"
 	"github.com/PiskarevSA/go-advanced/internal/usecases"
@@ -129,7 +130,7 @@ func (s *Server) storeMetrics(caller string) {
 }
 
 func (s *Server) createServer() *http.Server {
-	r := NewMetricsRouter(s.usecase).
+	r := handlers.NewMetricsRouter(s.usecase).
 		WithMiddlewares(middleware.Summary, middleware.Encoding).
 		WithAllHandlers()
 	server := http.Server{

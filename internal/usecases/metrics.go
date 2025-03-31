@@ -8,7 +8,7 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/entities"
 )
 
-type Storage interface {
+type storage interface {
 	GetMetric(metric entities.Metric) (*entities.Metric, error)
 	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
 	GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge,
@@ -69,11 +69,11 @@ func (d *IteratableDump) NextMetric() (
 
 // MetricsUsecase contains use cases, related to metrics creating, reading and updating
 type MetricsUsecase struct {
-	storage  Storage
+	storage  storage
 	OnChange func()
 }
 
-func NewMetricsUsecase(storage Storage) *MetricsUsecase {
+func NewMetricsUsecase(storage storage) *MetricsUsecase {
 	return &MetricsUsecase{
 		storage: storage,
 	}
