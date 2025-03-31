@@ -2,18 +2,19 @@ package usecases
 
 import (
 	"fmt"
+	"io"
 	"sort"
-	"strconv"
 
-	"github.com/PiskarevSA/go-advanced/internal/errors"
+	"github.com/PiskarevSA/go-advanced/internal/entities"
 )
 
-type Repositories interface {
-	SetGauge(key string, value float64)
-	Gauge(key string) (value float64, exist bool)
-	SetCounter(key string, value int64)
-	Counter(key string) (value int64, exist bool)
-	Dump() (gauge map[string]float64, counter map[string]int64)
+type storage interface {
+	GetMetric(metric entities.Metric) (*entities.Metric, error)
+	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
+	GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge,
+		counter map[entities.MetricName]entities.Counter)
+	Load(r io.Reader) error
+	Store(w io.Writer) error
 }
 
 type DumpRow struct {
@@ -27,27 +28,29 @@ type IteratableDump struct {
 	index int
 }
 
-func NewIteratableDump(gauge map[string]float64, counter map[string]int64) *IteratableDump {
+func NewIteratableDump(gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) *IteratableDump {
 	result := IteratableDump{}
 
 	var keys []string
 	for k := range gauge {
-		keys = append(keys, k)
+		keys = append(keys, string(k))
 	}
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		result.rows = append(result.rows, DumpRow{"gauge", k, fmt.Sprint(gauge[k])})
+		result.rows = append(result.rows,
+			DumpRow{"gauge", k, fmt.Sprint(gauge[entities.MetricName(k)])})
 	}
 
 	keys = make([]string, 0)
 	for k := range counter {
-		keys = append(keys, k)
+		keys = append(keys, string(k))
 	}
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		result.rows = append(result.rows, DumpRow{"counter", k, fmt.Sprint(counter[k])})
+		result.rows = append(result.rows,
+			DumpRow{"counter", k, fmt.Sprint(counter[entities.MetricName(k)])})
 	}
 
 	return &result
@@ -64,71 +67,43 @@ func (d *IteratableDump) NextMetric() (
 	return "", "", "", false
 }
 
-type Metrics struct {
-	repo Repositories
+// MetricsUsecase contains use cases, related to metrics creating, reading and updating
+type MetricsUsecase struct {
+	storage  storage
+	OnChange func()
 }
 
-func NewMetrics(repo Repositories) *Metrics {
-	return &Metrics{
-		repo: repo,
+func NewMetricsUsecase(storage storage) *MetricsUsecase {
+	return &MetricsUsecase{
+		storage: storage,
 	}
 }
 
-func (m *Metrics) Update(metricType string, metricName string, metricValue string) error {
-	switch metricType {
-	case "gauge":
-		if len(metricName) == 0 {
-			return errors.NewEmptyMetricNameError()
-		}
-		f64, err := strconv.ParseFloat(metricValue, 64)
-		if err != nil {
-			return errors.NewMetricValueIsNotValidError(err)
-		}
-		m.repo.SetGauge(metricName, f64)
-	case "counter":
-		if len(metricName) == 0 {
-			return errors.NewEmptyMetricNameError()
-		}
-		i64, err := strconv.ParseInt(metricValue, 10, 64)
-		if err != nil {
-			return errors.NewMetricValueIsNotValidError(err)
-		}
-		m.repo.SetCounter(metricName, i64)
-	case "":
-		return errors.NewEmptyMetricTypeError()
-	default:
-		return errors.NewInvalidMetricTypeError(metricType)
+func (m *MetricsUsecase) GetMetric(metric entities.Metric) (*entities.Metric, error) {
+	return m.storage.GetMetric(metric)
+}
+
+func (m *MetricsUsecase) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
+	return m.storage.UpdateMetric(metric)
+}
+
+func (m *MetricsUsecase) DumpIterator() func() (type_ string, name string, value string, exists bool) {
+	gauge, counter := m.storage.GetMetricsByTypes()
+
+	iteratableDump := NewIteratableDump(gauge, counter)
+	return iteratableDump.NextMetric
+}
+
+func (m *MetricsUsecase) LoadMetrics(r io.Reader) error {
+	if err := m.storage.Load(r); err != nil {
+		return fmt.Errorf("load metrics: %w", err)
 	}
 	return nil
 }
 
-func (m *Metrics) Get(metricType string, metricName string) (
-	value string, err error,
-) {
-	switch metricType {
-	case "gauge":
-		gauge, exist := m.repo.Gauge(metricName)
-		if !exist {
-			return "", errors.NewMetricNameNotFoundError(metricName)
-		}
-		return fmt.Sprint(gauge), nil
-
-	case "counter":
-		counter, exist := m.repo.Counter(metricName)
-		if !exist {
-			return "", errors.NewMetricNameNotFoundError(metricName)
-		}
-		return fmt.Sprint(counter), nil
-	case "":
-		return "", errors.NewEmptyMetricTypeError()
-	default:
-		return "", errors.NewInvalidMetricTypeError(metricType)
+func (m *MetricsUsecase) StoreMetrics(w io.Writer) error {
+	if err := m.storage.Store(w); err != nil {
+		return fmt.Errorf("store metrics: %w", err)
 	}
-}
-
-func (m *Metrics) DumpIterator() func() (type_ string, name string, value string, exists bool) {
-	gauge, counter := m.repo.Dump()
-
-	iteratableDump := NewIteratableDump(gauge, counter)
-	return iteratableDump.NextMetric
+	return nil
 }

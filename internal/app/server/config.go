@@ -4,29 +4,47 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
+	"time"
 
 	"github.com/caarlos0/env/v6"
 )
 
 type Config struct {
-	ServerAddress string `env:"ADDRESS"`
+	ServerAddress   string `env:"ADDRESS"`
+	StoreInterval   int    `env:"STORE_INTERVAL"`
+	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	Restore         bool   `env:"RESTORE"`
 }
 
+const updateInterval = 100 * time.Millisecond
+
 const (
-	defaultServerAddress = "localhost:8080"
+	defaultServerAddress   = "localhost:8080"
+	defaultStoreInterval   = 300
+	defaultFileStoragePath = "metrics.json"
+	defaultRestore         = false
 )
 
 func NewConfig() *Config {
 	return &Config{
-		ServerAddress: defaultServerAddress,
+		ServerAddress:   defaultServerAddress,
+		StoreInterval:   defaultStoreInterval,
+		FileStoragePath: defaultFileStoragePath,
+		Restore:         defaultRestore,
 	}
 }
 
 func (c *Config) ParseFlags() error {
 	flag.StringVar(&c.ServerAddress, "a", c.ServerAddress,
 		"server address; env: ADDRESS")
+	flag.IntVar(&c.StoreInterval, "i", c.StoreInterval,
+		"metrics store inverval in seconds; env: STORE_INTERVAL")
+	flag.StringVar(&c.FileStoragePath, "f", c.FileStoragePath,
+		"path to file with stored metrics; env: FILE_STORAGE_PATH")
+	flag.BoolVar(&c.Restore, "r", c.Restore,
+		"restore metrics from file on service startup")
 	flag.CommandLine.Init("", flag.ContinueOnError)
 	err := flag.CommandLine.Parse(os.Args[1:])
 	if err != nil {
@@ -50,18 +68,18 @@ func (c *Config) ReadEnv() error {
 
 func ReadConfig() (*Config, error) {
 	c := NewConfig()
-	log.Printf("default config: %+v\n", *c)
+	slog.Info("[main] default", "config", *c)
 	// flags takes less priority according to task description
 	err := c.ParseFlags()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
-	log.Printf("config after flags: %+v\n", *c)
+	slog.Info("[main] after flags", "config", *c)
 	// enviromnent takes higher priority according to task description
 	err = c.ReadEnv()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
-	log.Printf("config after env: %+v\n", *c)
+	slog.Info("[main] after env", "config", *c)
 	return c, nil
 }

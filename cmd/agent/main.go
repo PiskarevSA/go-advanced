@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent"
@@ -15,16 +15,16 @@ func main() {
 
 	config, err := agent.ReadConfig()
 	if err != nil {
-		log.Println(err)
+		slog.Error(err.Error())
 		exitCode = 1
 		return
 	}
 
 	agent := agent.NewAgent()
-	log.Println("[agent] run")
+	slog.Info("[main] running agent")
 	success := agent.Run(config)
 	if !success {
-		exitCode = 1
+		exitCode = 2
 	}
-	log.Println("[agent] gracefull shutdown")
+	slog.Info("[main] gracefull shutdown complete")
 }

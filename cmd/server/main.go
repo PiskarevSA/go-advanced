@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/PiskarevSA/go-advanced/internal/app/server"
@@ -15,16 +15,16 @@ func main() {
 
 	config, err := server.ReadConfig()
 	if err != nil {
-		log.Println(err)
+		slog.Error(err.Error())
 		exitCode = 1
 		return
 	}
 
-	server := server.NewServer()
-	log.Println("[server] run")
-	success := server.Run(config)
+	server := server.NewServer(config)
+	slog.Info("[main] running server")
+	success := server.Run()
 	if !success {
-		exitCode = 1
+		exitCode = 2
 	}
-	log.Println("[server] gracefull shutdown")
+	slog.Info("[main] gracefull shutdown complete")
 }

@@ -3,115 +3,197 @@ package storage
 import (
 	"testing"
 
+	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMemStorage_SetGauge(t *testing.T) {
-	type args struct {
-		key   string
-		value float64
+func filledMemStorage() *MemStorage {
+	return &MemStorage{
+		GaugeMap: map[entities.MetricName]entities.Gauge{
+			"Gauge1": 1.11,
+			"Gauge2": 2.22,
+		},
+		CounterMap: map[entities.MetricName]entities.Counter{
+			"Counter1": 111,
+			"Counter2": 222,
+		},
+	}
+}
+
+func TestMemStorage_Get(t *testing.T) {
+	type given struct {
+		argMetric entities.Metric
+	}
+	type want struct {
+		argResponse *entities.Metric
+		argError    error
 	}
 	tests := []struct {
 		name  string
-		gauge map[string]float64
-		args  args
-		want  map[string]float64
+		given given
+		want  want
 	}{
 		{
-			name: "add gauge",
-			gauge: map[string]float64{
-				"foo": 1.0,
-				"bar": 2.0,
+			name: "get existing gauge",
+			given: given{
+				argMetric: entities.Metric{
+					Type: entities.MetricTypeGauge,
+					Name: "Gauge2",
+				},
 			},
-			args: args{
-				key:   "baz",
-				value: 3.0,
-			},
-			want: map[string]float64{
-				"foo": 1.0,
-				"bar": 2.0,
-				"baz": 3.0,
+			want: want{
+				argResponse: &entities.Metric{
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge2",
+					Value: 2.22,
+				},
+				argError: nil,
 			},
 		},
 		{
-			name: "replace gauge",
-			gauge: map[string]float64{
-				"foo": 1.0,
-				"bar": 2.0,
+			name: "get non-existing gauge",
+			given: given{
+				argMetric: entities.Metric{
+					Type: entities.MetricTypeGauge,
+					Name: "Gauge3",
+				},
 			},
-			args: args{
-				key:   "bar",
-				value: 3.0,
+			want: want{
+				argResponse: nil,
+				argError:    entities.NewMetricNameNotFoundError("Gauge3"),
 			},
-			want: map[string]float64{
-				"foo": 1.0,
-				"bar": 3.0,
+		},
+		{
+			name: "get existing counter",
+			given: given{
+				argMetric: entities.Metric{
+					Type: entities.MetricTypeCounter,
+					Name: "Counter2",
+				},
+			},
+			want: want{
+				argResponse: &entities.Metric{
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter2",
+					Delta: 222,
+				},
+				argError: nil,
+			},
+		},
+		{
+			name: "get non-existing counter",
+			given: given{
+				argMetric: entities.Metric{
+					Type: entities.MetricTypeCounter,
+					Name: "Counter3",
+				},
+			},
+			want: want{
+				argResponse: nil,
+				argError:    entities.NewMetricNameNotFoundError("Counter3"),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := &MemStorage{
-				gauge:   tt.gauge,
-				counter: map[string]int64{},
-			}
-			m.SetGauge(tt.args.key, tt.args.value)
-			assert.Equal(t, m.gauge, tt.want)
+			response, err := filledMemStorage().GetMetric(tt.given.argMetric)
+			assert.Equal(t, tt.want.argResponse, response)
+			assert.Equal(t, err, tt.want.argError)
 		})
 	}
 }
 
-func TestMemStorage_SetCounter(t *testing.T) {
-	type args struct {
-		key   string
-		value int64
+func TestMemStorage_Update(t *testing.T) {
+	type given struct {
+		argMetric entities.Metric
+	}
+	type want struct {
+		argResponse *entities.Metric
+		argError    error
 	}
 	tests := []struct {
-		name    string
-		counter map[string]int64
-		args    args
-		want    map[string]int64
+		name  string
+		given given
+		want  want
 	}{
 		{
-			name: "add counter",
-			counter: map[string]int64{
-				"foo": 1,
-				"bar": 2,
+			name: "add gauge",
+			given: given{
+				argMetric: entities.Metric{
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge3",
+					Value: 3.33,
+				},
 			},
-			args: args{
-				key:   "baz",
-				value: 3,
-			},
-			want: map[string]int64{
-				"foo": 1,
-				"bar": 2,
-				"baz": 3,
+			want: want{
+				argResponse: &entities.Metric{
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge3",
+					Value: 3.33,
+				},
+				argError: nil,
 			},
 		},
 		{
-			name: "replace counter",
-			counter: map[string]int64{
-				"foo": 1,
-				"bar": 2,
+			name: "replace gauge",
+			given: given{
+				argMetric: entities.Metric{
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge2",
+					Value: 22.22,
+				},
 			},
-			args: args{
-				key:   "bar",
-				value: 3,
+			want: want{
+				argResponse: &entities.Metric{
+					Type:  entities.MetricTypeGauge,
+					Name:  "Gauge2",
+					Value: 22.22,
+				},
+				argError: nil,
 			},
-			want: map[string]int64{
-				"foo": 1,
-				"bar": 5,
+		},
+		{
+			name: "add counter",
+			given: given{
+				argMetric: entities.Metric{
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter3",
+					Delta: 333,
+				},
+			},
+			want: want{
+				argResponse: &entities.Metric{
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter3",
+					Delta: 333,
+				},
+				argError: nil,
+			},
+		},
+		{
+			name: "increase counter",
+			given: given{
+				argMetric: entities.Metric{
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter2",
+					Delta: 2000,
+				},
+			},
+			want: want{
+				argResponse: &entities.Metric{
+					Type:  entities.MetricTypeCounter,
+					Name:  "Counter2",
+					Delta: 2222,
+				},
+				argError: nil,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := &MemStorage{
-				gauge:   map[string]float64{},
-				counter: tt.counter,
-			}
-			m.SetCounter(tt.args.key, tt.args.value)
-			assert.Equal(t, m.counter, tt.want)
+			response, err := filledMemStorage().UpdateMetric(tt.given.argMetric)
+			assert.Equal(t, tt.want.argResponse, response)
+			assert.Equal(t, err, tt.want.argError)
 		})
 	}
 }

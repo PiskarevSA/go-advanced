@@ -1,31 +1,17 @@
-package errors
+package entities
 
 import (
+	"errors"
 	"fmt"
 )
 
 // stateless errors
-// .. EmptyMetricTypeError
-type EmptyMetricTypeError struct{}
-
-func NewEmptyMetricTypeError() *EmptyMetricTypeError {
-	return &EmptyMetricTypeError{}
-}
-
-func (e EmptyMetricTypeError) Error() string {
-	return "empty metric type"
-}
-
-// .. EmptyMetricNameError
-type EmptyMetricNameError struct{}
-
-func NewEmptyMetricNameError() *EmptyMetricNameError {
-	return &EmptyMetricNameError{}
-}
-
-func (e *EmptyMetricNameError) Error() string {
-	return "empty metric name"
-}
+var (
+	ErrEmptyMetricName     = errors.New("empty metric name")
+	ErrJSONRequestExpected = errors.New("expected Content-Type=application/json")
+	ErrMissingValue        = errors.New("missing value")
+	ErrMissingDelta        = errors.New("missing delta")
+)
 
 // stateful errors
 // .. InvalidMetricTypeError
@@ -43,10 +29,10 @@ func (e *InvalidMetricTypeError) Error() string {
 
 // .. MetricNameNotFoundError
 type MetricNameNotFoundError struct {
-	MetricName string
+	MetricName MetricName
 }
 
-func NewMetricNameNotFoundError(metricName string) *MetricNameNotFoundError {
+func NewMetricNameNotFoundError(metricName MetricName) *MetricNameNotFoundError {
 	return &MetricNameNotFoundError{MetricName: metricName}
 }
 
@@ -69,4 +55,34 @@ func (e *MetricValueIsNotValidError) Error() string {
 
 func (e *MetricValueIsNotValidError) Unwrap() error {
 	return e.error
+}
+
+// .. JSONRequestDecodeError
+type JSONRequestDecodeError struct {
+	error
+}
+
+func NewJSONRequestDecodeError(error error) *JSONRequestDecodeError {
+	return &JSONRequestDecodeError{error: error}
+}
+
+func (e *JSONRequestDecodeError) Error() string {
+	return fmt.Sprintf("json request decoding: %s", e.error.Error())
+}
+
+func (e *JSONRequestDecodeError) Unwrap() error {
+	return e.error
+}
+
+// .. InternalError
+type InternalError struct {
+	message string
+}
+
+func NewInternalError(message string) *InternalError {
+	return &InternalError{message: message}
+}
+
+func (e *InternalError) Error() string {
+	return fmt.Sprintf("internal error: %s", e.message)
 }

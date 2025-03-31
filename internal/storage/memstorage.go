@@ -1,65 +1,117 @@
 package storage
 
-import "sync"
+import (
+	"encoding/json"
+	"io"
+	"sync"
+
+	"github.com/PiskarevSA/go-advanced/internal/entities"
+)
 
 type MemStorage struct {
 	mutex sync.RWMutex
 
-	gauge   map[string]float64
-	counter map[string]int64
+	GaugeMap   map[entities.MetricName]entities.Gauge   `json:"gauge"`
+	CounterMap map[entities.MetricName]entities.Counter `json:"counter"`
 }
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		gauge:   make(map[string]float64),
-		counter: make(map[string]int64),
+		GaugeMap:   make(map[entities.MetricName]entities.Gauge),
+		CounterMap: make(map[entities.MetricName]entities.Counter),
 	}
 }
 
-func (m *MemStorage) SetGauge(key string, value float64) {
+func (m *MemStorage) GetMetric(metric entities.Metric) (*entities.Metric, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	switch metric.Type {
+	case entities.MetricTypeGauge:
+		value, exists := m.GaugeMap[metric.Name]
+		if !exists {
+			return nil, entities.NewMetricNameNotFoundError(metric.Name)
+		}
+		result := entities.Metric{
+			Type:  metric.Type,
+			Name:  metric.Name,
+			Value: value,
+			Delta: 0,
+		}
+		return &result, nil
+	case entities.MetricTypeCounter:
+		delta, exists := m.CounterMap[metric.Name]
+		if !exists {
+			return nil, entities.NewMetricNameNotFoundError(metric.Name)
+		}
+		result := entities.Metric{
+			Type:  metric.Type,
+			Name:  metric.Name,
+			Value: 0,
+			Delta: delta,
+		}
+		return &result, nil
+	}
+	return nil, entities.NewInternalError(
+		"unexpected internal metric type: " + metric.Type.String())
+}
+
+func (m *MemStorage) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	m.gauge[key] = value
+	switch metric.Type {
+	case entities.MetricTypeGauge:
+		m.GaugeMap[metric.Name] = metric.Value
+
+		result := entities.Metric{
+			Type:  metric.Type,
+			Name:  metric.Name,
+			Value: m.GaugeMap[metric.Name],
+			Delta: 0,
+		}
+		return &result, nil
+	case entities.MetricTypeCounter:
+		m.CounterMap[metric.Name] += metric.Delta
+
+		result := entities.Metric{
+			Type:  metric.Type,
+			Name:  metric.Name,
+			Value: 0,
+			Delta: m.CounterMap[metric.Name],
+		}
+		return &result, nil
+	}
+	return nil, entities.NewInternalError(
+		"unexpected internal metric type: " + metric.Type.String())
 }
 
-func (m *MemStorage) Gauge(key string) (value float64, exist bool) {
+func (m *MemStorage) GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	value, exist = m.gauge[key]
-	return
-}
-
-func (m *MemStorage) SetCounter(key string, value int64) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	// TBD m.counter[key] = value
-	// see https://app.pachca.com/chats/19865306?message=445288954
-	m.counter[key] += value
-}
-
-func (m *MemStorage) Counter(key string) (value int64, exist bool) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	value, exist = m.counter[key]
-	return
-}
-
-func (m *MemStorage) Dump() (gauge map[string]float64, counter map[string]int64) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	gauge = make(map[string]float64)
-	for k, v := range m.gauge {
+	gauge = make(map[entities.MetricName]entities.Gauge)
+	for k, v := range m.GaugeMap {
 		gauge[k] = v
 	}
 
-	counter = make(map[string]int64)
-	for k, v := range m.counter {
+	counter = make(map[entities.MetricName]entities.Counter)
+	for k, v := range m.CounterMap {
 		counter[k] = v
 	}
 	return
+}
+
+func (m *MemStorage) Load(r io.Reader) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	return json.NewDecoder(r).Decode(&m)
+}
+
+func (m *MemStorage) Store(w io.Writer) error {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	return json.NewEncoder(w).Encode(m)
 }

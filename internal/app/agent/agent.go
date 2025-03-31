@@ -1,18 +1,22 @@
 package agent
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/PiskarevSA/go-advanced/internal/models"
 )
 
 const updateInterval = 100 * time.Millisecond
@@ -52,14 +56,17 @@ func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
+		slog.Info("[signal handler] Waiting for an interrupt signal...")
+
 		// Wait for an interrupt signal to initiate graceful shutdown
 		<-sigChan
 
 		// Handle shutdown signal (Ctrl+C or SIGTERM)
-		log.Println("Received shutdown signal. Shutting down gracefully...")
+		slog.Info("[signal handler] Received shutdown signal")
 
 		// Cancel the context to notify all goroutines to stop
 		cancel()
+		slog.Info("[signal handler] Cancel func called")
 	}()
 	return ctx, cancel
 }
@@ -84,18 +91,18 @@ func (a *Agent) startPoller(ctx context.Context, wg *sync.WaitGroup, pollInterva
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		log.Println("[poller] start ")
+		slog.Info("[poller] start ")
 
 		for {
 			pollCount := a.metrics.Poll()
-			log.Println("[poller] polled", pollCount)
+			slog.Info("[poller] polled", "pollCount", pollCount)
 			a.readyRead.Store(true)
 			// sleep pollInterval or interrupt
 			for t := time.Duration(0); t < pollInterval; t += updateInterval {
 				select {
 				case <-ctx.Done():
 					// Handle context cancellation (graceful shutdown)
-					log.Printf("[poller] stopping: %v\n", ctx.Err())
+					slog.Info("[poller] stopping", "reason", ctx.Err())
 					return
 				default:
 					time.Sleep(updateInterval)
@@ -111,23 +118,23 @@ func (a *Agent) startReporter(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		log.Println("[reporter] start")
+		slog.Info("[reporter] start")
 		// wait for first poll
 		for !a.readyRead.Load() {
-			log.Println("[reporter] waiting for first poll")
+			slog.Info("[reporter] waiting for first poll")
 			time.Sleep(time.Microsecond)
 		}
 		for {
 			pollCount, gauge, counter := a.metrics.Get()
 			// report
 			a.Report(ctx, serverAddress, gauge, counter)
-			log.Println("[reporter] reported", pollCount)
+			slog.Info("[reporter] reported", "pollCount", pollCount)
 			// sleep reportInterval or interrupt
 			for t := time.Duration(0); t < reportInterval; t += updateInterval {
 				select {
 				case <-ctx.Done():
 					// Handle context cancellation (graceful shutdown)
-					log.Printf("[reporter] stopping: %v\n", ctx.Err())
+					slog.Info("[reporter] stopping", "reason", ctx.Err())
 					return
 				default:
 					time.Sleep(updateInterval)
@@ -142,29 +149,55 @@ func (a *Agent) startReporter(
 func (a *Agent) Report(
 	ctx context.Context, serverAddress string, gauge map[string]gauge, counter map[string]counter,
 ) {
-	urls := make([]string, 0, len(gauge)+len(counter))
-	for key, gauge := range gauge {
-		urls = append(urls, strings.Join(
-			[]string{"http://" + serverAddress, "update", "gauge", key, fmt.Sprint(gauge)}, "/"))
-	}
-	for key, counter := range counter {
-		urls = append(urls, strings.Join(
-			[]string{"http://" + serverAddress, "update", "counter", key, fmt.Sprint(counter)}, "/"))
-	}
+	url := "http://" + serverAddress + "/update/"
+	bodies := make([][]byte, 0, len(gauge)+len(counter))
 	var (
 		firstError error
 		errorCount int
 	)
-	log.Println("[reporter] start reporting")
-	for _, url := range urls {
+
+	appendBodyFromMetricAsJSON := func(m models.Metric) {
+		body, err := json.Marshal(m)
+		if err != nil {
+			if errorCount == 0 {
+				firstError = err
+			}
+			errorCount += 1
+			return
+		}
+		bodies = append(bodies, body)
+	}
+
+	for key, gauge := range gauge {
+		value := float64(gauge)
+		m := models.Metric{
+			ID:    key,
+			MType: "gauge",
+			Value: &value,
+		}
+		appendBodyFromMetricAsJSON(m)
+	}
+
+	for key, counter := range counter {
+		delta := int64(counter)
+		m := models.Metric{
+			ID:    key,
+			MType: "counter",
+			Delta: &delta,
+		}
+		appendBodyFromMetricAsJSON(m)
+	}
+
+	slog.Info("[reporter] start reporting")
+	for _, body := range bodies {
 		select {
 		case <-ctx.Done():
 			// Handle context cancellation (graceful shutdown)
-			log.Printf("[reporter] interrupt reporting: %v\n", ctx.Err())
+			slog.Info("[reporter] interrupt reporting: %v\n", "error", ctx.Err())
 			return
 		default:
 			// send next metric
-			err := a.ReportToURL(url)
+			err := a.ReportToURL(url, body)
 			if err != nil {
 				if errorCount == 0 {
 					firstError = err
@@ -174,18 +207,31 @@ func (a *Agent) Report(
 		}
 	}
 	if errorCount > 0 {
-		message := fmt.Sprintf("[reporter] %v", firstError)
-		if errorCount > 1 {
-			message += fmt.Sprintf(" (and %v more errors)", errorCount-1)
-		}
-		log.Println(message)
+		slog.Info("[reporter]", "errorCount", errorCount, "firstError", firstError)
 	}
 }
 
-func (a *Agent) ReportToURL(url string) error {
-	res, err := a.httpClient.Post(url, "text/plain", http.NoBody)
+func (a *Agent) ReportToURL(url string, body []byte) error {
+	bodyReader := bytes.NewBuffer(nil)
+	gzipWriter := gzip.NewWriter(bodyReader)
+	// write compressed body to buffer
+	if _, err := gzipWriter.Write(body); err != nil {
+		return fmt.Errorf("gzipWriter.Write(): %w", err)
+	}
+	// flush any unwritten data to buffer
+	if err := gzipWriter.Close(); err != nil {
+		return fmt.Errorf("gzipWriter.Close(): %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bodyReader)
 	if err != nil {
-		return err
+		return fmt.Errorf("http.NewRequest(): %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	res, err := a.httpClient.Do(req) // closes compressedBodyReader
+	if err != nil {
+		return fmt.Errorf("httpClient.Do(): %w", err)
 	}
 	defer res.Body.Close()
 
@@ -194,7 +240,7 @@ func (a *Agent) ReportToURL(url string) error {
 	// not read to completion and closed.
 	_, err = io.Copy(io.Discard, res.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("io.Copy(): %w", err)
 	}
 
 	if res.StatusCode != http.StatusOK {
