@@ -2,7 +2,6 @@ package usecases
 
 import (
 	"fmt"
-	"io"
 	"sort"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
@@ -13,8 +12,8 @@ type storage interface {
 	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
 	GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge,
 		counter map[entities.MetricName]entities.Counter)
-	Load(r io.Reader) error
-	Store(w io.Writer) error
+	Ping() error
+	Close() error
 }
 
 type DumpRow struct {
@@ -69,8 +68,7 @@ func (d *IteratableDump) NextMetric() (
 
 // MetricsUsecase contains use cases, related to metrics creating, reading and updating
 type MetricsUsecase struct {
-	storage  storage
-	OnChange func()
+	storage storage
 }
 
 func NewMetricsUsecase(storage storage) *MetricsUsecase {
@@ -94,16 +92,6 @@ func (m *MetricsUsecase) DumpIterator() func() (type_ string, name string, value
 	return iteratableDump.NextMetric
 }
 
-func (m *MetricsUsecase) LoadMetrics(r io.Reader) error {
-	if err := m.storage.Load(r); err != nil {
-		return fmt.Errorf("load metrics: %w", err)
-	}
-	return nil
-}
-
-func (m *MetricsUsecase) StoreMetrics(w io.Writer) error {
-	if err := m.storage.Store(w); err != nil {
-		return fmt.Errorf("store metrics: %w", err)
-	}
-	return nil
+func (m *MetricsUsecase) Ping() error {
+	return m.storage.Ping()
 }

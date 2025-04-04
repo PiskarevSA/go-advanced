@@ -37,6 +37,7 @@ type metricsUsecase interface {
 	GetMetric(metric entities.Metric) (*entities.Metric, error)
 	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
 	DumpIterator() func() (type_ string, name string, value string, exists bool)
+	Ping() error
 }
 
 type MetricsRouter struct {
@@ -62,6 +63,7 @@ func (r *MetricsRouter) WithAllHandlers() *MetricsRouter {
 	r.Post(`/update/{type}/{name}/{value}`, r.updateFromURLHandler)
 	r.Post(`/value/`, r.getAsJSONHandler)
 	r.Get(`/value/{type}/{name}`, r.getAsTextHandler)
+	r.Get(`/ping`, r.ping)
 
 	return r
 }
@@ -258,4 +260,13 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 		// unexpected error
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (r *MetricsRouter) ping(res http.ResponseWriter, req *http.Request) {
+	if err := r.metricsUsecase.Ping(); err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	res.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	res.WriteHeader(http.StatusOK)
 }

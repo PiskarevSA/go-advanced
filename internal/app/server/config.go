@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/caarlos0/env/v6"
 )
@@ -16,15 +15,15 @@ type Config struct {
 	StoreInterval   int    `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
-
-const updateInterval = 100 * time.Millisecond
 
 const (
 	defaultServerAddress   = "localhost:8080"
 	defaultStoreInterval   = 300
 	defaultFileStoragePath = "metrics.json"
 	defaultRestore         = false
+	defaultDatabaseDSN     = ""
 )
 
 func NewConfig() *Config {
@@ -33,6 +32,7 @@ func NewConfig() *Config {
 		StoreInterval:   defaultStoreInterval,
 		FileStoragePath: defaultFileStoragePath,
 		Restore:         defaultRestore,
+		DatabaseDSN:     defaultDatabaseDSN,
 	}
 }
 
@@ -45,6 +45,8 @@ func (c *Config) ParseFlags() error {
 		"path to file with stored metrics; env: FILE_STORAGE_PATH")
 	flag.BoolVar(&c.Restore, "r", c.Restore,
 		"restore metrics from file on service startup")
+	flag.StringVar(&c.DatabaseDSN, "d", c.DatabaseDSN,
+		"database data source name (DSN)")
 	flag.CommandLine.Init("", flag.ContinueOnError)
 	err := flag.CommandLine.Parse(os.Args[1:])
 	if err != nil {

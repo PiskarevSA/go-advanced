@@ -1,8 +1,6 @@
 package storage
 
 import (
-	"encoding/json"
-	"io"
 	"sync"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
@@ -102,16 +100,6 @@ func (m *MemStorage) GetMetricsByTypes() (gauge map[entities.MetricName]entities
 	return
 }
 
-func (m *MemStorage) Load(r io.Reader) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (m *MemStorage) Ping() error { return nil }
 
-	return json.NewDecoder(r).Decode(&m)
-}
-
-func (m *MemStorage) Store(w io.Writer) error {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	return json.NewEncoder(w).Encode(m)
-}
+func (m *MemStorage) Close() error { return nil }
