@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -26,6 +27,11 @@ type mockUpdateMetricArgs struct {
 	// output
 	result *entities.Metric
 	err    error
+}
+
+type mockPingArgs struct {
+	// output
+	err error
 }
 
 type mockUsecase struct {
@@ -64,6 +70,13 @@ func (m *mockUsecase) UpdateMetric(metric entities.Metric) (*entities.Metric, er
 func (m *mockUsecase) DumpIterator() func() (type_ string, name string, value string, exists bool) {
 	require.Fail(m.t, "unexpected call")
 	return nil
+}
+
+func (m *mockUsecase) Ping() error {
+	require.Less(m.t, m.callIndex, len(m.mockCallParams))
+	args := m.mockCallParams[m.callIndex].(mockPingArgs)
+	m.callIndex += 1
+	return args.err
 }
 
 func testRequestJSON(t *testing.T, ts *httptest.Server, method, path string, body string) (
@@ -655,6 +668,89 @@ func TestMetricsRouter(t *testing.T) {
 				code:        http.StatusNotFound,
 				response:    "404 page not found\n",
 				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewMetricsRouter(tt.given.mockUsecase).WithAllHandlers()
+			ts := httptest.NewServer(r)
+			defer ts.Close()
+
+			respCode, respContentType, respBody := testRequest(
+				t, ts, tt.given.method, tt.given.url)
+			// проверяем параметры ответа
+			assert.Equal(t, tt.want.code, respCode)
+			assert.Equal(t, tt.want.contentType, respContentType)
+			assert.Equal(t, tt.want.response, respBody)
+			assert.Equal(t, len(tt.given.mockUsecase.mockCallParams),
+				tt.given.mockUsecase.callIndex)
+		})
+	}
+}
+
+func TestPing(t *testing.T) {
+	type given struct {
+		method      string
+		url         string
+		mockUsecase *mockUsecase
+	}
+	type want struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		name  string
+		given given
+		want  want
+	}{
+		{
+			name: "ping: positive",
+			given: given{
+				method: http.MethodGet,
+				url:    "/ping",
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockPingArgs{
+						// output
+						err: nil,
+					}),
+			},
+			want: want{
+				code:        http.StatusOK,
+				response:    "",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "ping: error",
+			given: given{
+				method: http.MethodGet,
+				url:    "/ping",
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockPingArgs{
+						// output
+						err: errors.New("some error"),
+					}),
+			},
+			want: want{
+				code:        http.StatusInternalServerError,
+				response:    "some error\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "ping: method not allowed",
+			given: given{
+				method:      http.MethodPost,
+				url:         "/ping",
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusMethodNotAllowed,
+				response:    "",
+				contentType: "",
 			},
 		},
 	}

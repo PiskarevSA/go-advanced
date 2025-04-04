@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,24 +11,31 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/PiskarevSA/go-advanced/internal/handlers"
 	"github.com/PiskarevSA/go-advanced/internal/middleware"
 	"github.com/PiskarevSA/go-advanced/internal/storage"
 	"github.com/PiskarevSA/go-advanced/internal/usecases"
 )
 
+type usecaseStorage interface {
+	GetMetric(metric entities.Metric) (*entities.Metric, error)
+	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
+	GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge,
+		counter map[entities.MetricName]entities.Counter)
+	Ping() error
+	Close() error
+}
+
 type Server struct {
-	storage *storage.MemStorage
+	storage usecaseStorage
 	usecase *usecases.MetricsUsecase
 	config  *Config
 }
 
 func NewServer(config *Config) *Server {
-	storage := storage.NewMemStorage()
 	return &Server{
-		storage: storage,
-		usecase: usecases.NewMetricsUsecase(storage),
-		config:  config,
+		config: config,
 	}
 }
 
@@ -71,7 +77,10 @@ func (s *Server) startWorkers(
 	// Wait group to ensure all goroutines finish before exiting
 	var wg sync.WaitGroup
 
-	s.loadMetrics()
+	s.createStorage(ctx, &wg)
+	defer s.storage.Close()
+
+	s.createMetricsUsecase()
 
 	server := s.createServer()
 
@@ -80,53 +89,28 @@ func (s *Server) startWorkers(
 
 	s.startWatchdog(ctx, &wg, server)
 
-	if s.config.StoreInterval > 0 {
-		s.startPreserver(ctx, &wg)
-	} else {
-		s.usecase.OnChange = func() { s.storeMetrics("on change") }
-	}
-
 	// Wait for all goroutines to finish
 	wg.Wait()
 	return success
 }
 
-func (s *Server) loadMetrics() {
-	if !s.config.Restore {
-		slog.Info("[main] metrics file loading skipped", "path", s.config.FileStoragePath)
-		return
+func (s *Server) createStorage(ctx context.Context, wg *sync.WaitGroup) {
+	if len(s.config.DatabaseDSN) > 0 {
+		s.storage = storage.NewPgStorage(s.config.DatabaseDSN)
+		slog.Info("[main] pgstorage created")
+	} else if len(s.config.FileStoragePath) > 0 {
+		filestorage := storage.NewFileStorage(ctx, wg,
+			s.config.StoreInterval, s.config.FileStoragePath, s.config.Restore)
+		s.storage = filestorage
+		slog.Info("[main] filestorage created")
+	} else {
+		s.storage = storage.NewMemStorage()
+		slog.Info("[main] memstorage created")
 	}
-	file, err := os.Open(s.config.FileStoragePath)
-	if err != nil {
-		slog.Error("[main] open metrics file", "error", err.Error())
-		return
-	}
-	defer file.Close()
-	err = s.usecase.LoadMetrics(file)
-	if err != nil {
-		slog.Error("[main] load metrics file", "error", err.Error())
-		return
-	}
-	slog.Info("[main] metrics file loaded", "path", s.config.FileStoragePath)
 }
 
-func (s *Server) storeMetrics(caller string) {
-	file, err := os.Create(s.config.FileStoragePath)
-	if err != nil {
-		msg := fmt.Sprintf("[%v] create metrics file", caller)
-		slog.Error(msg, "error", err.Error())
-		return
-	}
-	defer file.Close()
-	err = s.usecase.StoreMetrics(file)
-	if err != nil {
-		msg := fmt.Sprintf("[%v] store metrics file", caller)
-		slog.Error(msg, "error", err.Error())
-		return
-	}
-
-	msg := fmt.Sprintf("[%v] metrics file stored", caller)
-	slog.Info(msg, "path", s.config.FileStoragePath)
+func (s *Server) createMetricsUsecase() {
+	s.usecase = usecases.NewMetricsUsecase(s.storage)
 }
 
 func (s *Server) createServer() *http.Server {
@@ -174,30 +158,6 @@ func (s *Server) startWatchdog(ctx context.Context, wg *sync.WaitGroup, server *
 			slog.Error("[watchdog] server.Shutdown() error", "error", err.Error())
 		} else {
 			slog.Info("[watchdog] server.Shutdown() completed")
-		}
-	}()
-}
-
-func (s *Server) startPreserver(ctx context.Context, wg *sync.WaitGroup) {
-	wg.Add(1)
-	storeInterval := time.Duration(s.config.StoreInterval) * time.Second
-	go func() {
-		defer wg.Done()
-		slog.Info("[preserver] start")
-		for {
-			s.storeMetrics("preserver")
-			// sleep storeInterval or interrupt
-			for t := time.Duration(0); t < storeInterval; t += updateInterval {
-				select {
-				case <-ctx.Done():
-					// Handle context cancellation (graceful shutdown)
-					slog.Info("[preserver] stopping", "error", ctx.Err())
-					s.storeMetrics("preserver") // save changes
-					return
-				default:
-					time.Sleep(updateInterval)
-				}
-			}
 		}
 	}()
 }
