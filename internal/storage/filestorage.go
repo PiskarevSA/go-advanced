@@ -149,9 +149,9 @@ func (s *FileStorage) GetMetricsByTypes() (gauge map[entities.MetricName]entitie
 	return
 }
 
-func (m *FileStorage) Ping() error { return nil }
+func (s *FileStorage) Ping() error { return nil }
 
-func (m *FileStorage) Close() error { return nil }
+func (s *FileStorage) Close() error { return nil }
 
 func (s *FileStorage) loadMetrics() {
 	s.mutex.Lock()
