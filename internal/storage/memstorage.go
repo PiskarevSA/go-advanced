@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"sync"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
@@ -20,13 +21,14 @@ func NewMemStorage() *MemStorage {
 	}
 }
 
-func (m *MemStorage) GetMetric(metric entities.Metric) (*entities.Metric, error) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+func (s *MemStorage) GetMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	switch metric.Type {
 	case entities.MetricTypeGauge:
-		value, exists := m.GaugeMap[metric.Name]
+		value, exists := s.GaugeMap[metric.Name]
 		if !exists {
 			return nil, entities.NewMetricNameNotFoundError(metric.Name)
 		}
@@ -38,7 +40,7 @@ func (m *MemStorage) GetMetric(metric entities.Metric) (*entities.Metric, error)
 		}
 		return &result, nil
 	case entities.MetricTypeCounter:
-		delta, exists := m.CounterMap[metric.Name]
+		delta, exists := s.CounterMap[metric.Name]
 		if !exists {
 			return nil, entities.NewMetricNameNotFoundError(metric.Name)
 		}
@@ -54,29 +56,30 @@ func (m *MemStorage) GetMetric(metric entities.Metric) (*entities.Metric, error)
 		"unexpected internal metric type: " + metric.Type.String())
 }
 
-func (m *MemStorage) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (s *MemStorage) UpdateMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	switch metric.Type {
 	case entities.MetricTypeGauge:
-		m.GaugeMap[metric.Name] = metric.Value
+		s.GaugeMap[metric.Name] = metric.Value
 
 		result := entities.Metric{
 			Type:  metric.Type,
 			Name:  metric.Name,
-			Value: m.GaugeMap[metric.Name],
+			Value: s.GaugeMap[metric.Name],
 			Delta: 0,
 		}
 		return &result, nil
 	case entities.MetricTypeCounter:
-		m.CounterMap[metric.Name] += metric.Delta
+		s.CounterMap[metric.Name] += metric.Delta
 
 		result := entities.Metric{
 			Type:  metric.Type,
 			Name:  metric.Name,
 			Value: 0,
-			Delta: m.CounterMap[metric.Name],
+			Delta: s.CounterMap[metric.Name],
 		}
 		return &result, nil
 	}
@@ -84,22 +87,25 @@ func (m *MemStorage) UpdateMetric(metric entities.Metric) (*entities.Metric, err
 		"unexpected internal metric type: " + metric.Type.String())
 }
 
-func (m *MemStorage) GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+func (s *MemStorage) GetMetricsByTypes(ctx context.Context,
+	gauge map[entities.MetricName]entities.Gauge,
+	counter map[entities.MetricName]entities.Counter,
+) error {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	gauge = make(map[entities.MetricName]entities.Gauge)
-	for k, v := range m.GaugeMap {
+	for k, v := range s.GaugeMap {
 		gauge[k] = v
 	}
 
 	counter = make(map[entities.MetricName]entities.Counter)
-	for k, v := range m.CounterMap {
+	for k, v := range s.CounterMap {
 		counter[k] = v
 	}
-	return
+	return nil
 }
 
-func (m *MemStorage) Ping() error { return nil }
+func (s *MemStorage) Ping(ctx context.Context) error { return nil }
 
-func (m *MemStorage) Close() error { return nil }
+func (s *MemStorage) Close(ctx context.Context) error { return nil }

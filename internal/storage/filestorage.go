@@ -67,7 +67,8 @@ func NewFileStorage(ctx context.Context, wg *sync.WaitGroup,
 	return result
 }
 
-func (s *FileStorage) GetMetric(metric entities.Metric) (*entities.Metric, error) {
+func (s *FileStorage) GetMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -101,7 +102,8 @@ func (s *FileStorage) GetMetric(metric entities.Metric) (*entities.Metric, error
 		"unexpected internal metric type: " + metric.Type.String())
 }
 
-func (s *FileStorage) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
+func (s *FileStorage) UpdateMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -133,7 +135,10 @@ func (s *FileStorage) UpdateMetric(metric entities.Metric) (*entities.Metric, er
 		"unexpected internal metric type: " + metric.Type.String())
 }
 
-func (s *FileStorage) GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) {
+func (s *FileStorage) GetMetricsByTypes(ctx context.Context,
+	gauge map[entities.MetricName]entities.Gauge,
+	counter map[entities.MetricName]entities.Counter,
+) error {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -146,12 +151,12 @@ func (s *FileStorage) GetMetricsByTypes() (gauge map[entities.MetricName]entitie
 	for k, v := range s.CounterMap {
 		counter[k] = v
 	}
-	return
+	return nil
 }
 
-func (s *FileStorage) Ping() error { return nil }
+func (s *FileStorage) Ping(ctx context.Context) error { return nil }
 
-func (s *FileStorage) Close() error { return nil }
+func (s *FileStorage) Close(ctx context.Context) error { return nil }
 
 func (s *FileStorage) loadMetrics() {
 	s.mutex.Lock()

@@ -1,6 +1,7 @@
 package usecases
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
@@ -8,12 +9,12 @@ import (
 )
 
 type storage interface {
-	GetMetric(metric entities.Metric) (*entities.Metric, error)
-	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
-	GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge,
-		counter map[entities.MetricName]entities.Counter)
-	Ping() error
-	Close() error
+	GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	GetMetricsByTypes(ctx context.Context, gauge map[entities.MetricName]entities.Gauge,
+		counter map[entities.MetricName]entities.Counter) error
+	Ping(ctx context.Context) error
+	Close(ctx context.Context) error
 }
 
 type DumpRow struct {
@@ -77,21 +78,25 @@ func NewMetricsUsecase(storage storage) *MetricsUsecase {
 	}
 }
 
-func (m *MetricsUsecase) GetMetric(metric entities.Metric) (*entities.Metric, error) {
-	return m.storage.GetMetric(metric)
+func (m *MetricsUsecase) GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error) {
+	return m.storage.GetMetric(ctx, metric)
 }
 
-func (m *MetricsUsecase) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
-	return m.storage.UpdateMetric(metric)
+func (m *MetricsUsecase) UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error) {
+	return m.storage.UpdateMetric(ctx, metric)
 }
 
-func (m *MetricsUsecase) DumpIterator() func() (type_ string, name string, value string, exists bool) {
-	gauge, counter := m.storage.GetMetricsByTypes()
+func (m *MetricsUsecase) DumpIterator(ctx context.Context) (func() (type_ string, name string, value string, exists bool), error) {
+	gauge := make(map[entities.MetricName]entities.Gauge)
+	counter := make(map[entities.MetricName]entities.Counter)
+	if err := m.storage.GetMetricsByTypes(ctx, gauge, counter); err != nil {
+		return nil, err
+	}
 
 	iteratableDump := NewIteratableDump(gauge, counter)
-	return iteratableDump.NextMetric
+	return iteratableDump.NextMetric, nil
 }
 
-func (m *MetricsUsecase) Ping() error {
-	return m.storage.Ping()
+func (m *MetricsUsecase) Ping(ctx context.Context) error {
+	return m.storage.Ping(ctx)
 }

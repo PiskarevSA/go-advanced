@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/PiskarevSA/go-advanced/internal/handlers/adapters"
@@ -34,10 +36,10 @@ const (
 )
 
 type metricsUsecase interface {
-	GetMetric(metric entities.Metric) (*entities.Metric, error)
-	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
-	DumpIterator() func() (type_ string, name string, value string, exists bool)
-	Ping() error
+	GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	DumpIterator(ctx context.Context) (func() (type_ string, name string, value string, exists bool), error)
+	Ping(ctx context.Context) error
 }
 
 type MetricsRouter struct {
@@ -72,7 +74,12 @@ func (r *MetricsRouter) WithAllHandlers() *MetricsRouter {
 // request: none
 // response	type: "text/html", body: html document containing dumped metrics
 func (r *MetricsRouter) mainPageHandler(res http.ResponseWriter, req *http.Request) {
-	metricsIterator := r.metricsUsecase.DumpIterator()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	metricsIterator, err := r.metricsUsecase.DumpIterator(ctx)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+	}
 
 	var rows string
 	for {
@@ -86,7 +93,7 @@ func (r *MetricsRouter) mainPageHandler(res http.ResponseWriter, req *http.Reque
 	doc := fmt.Sprintf(docTemplate, rows)
 
 	res.Header().Set("Content-Type", "text/html")
-	_, err := res.Write([]byte(doc))
+	_, err = res.Write([]byte(doc))
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 	}
@@ -102,7 +109,9 @@ func (r *MetricsRouter) getAsJSONHandler(res http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	responseMetric, err := r.metricsUsecase.GetMetric(*validMetric)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	responseMetric, err := r.metricsUsecase.GetMetric(ctx, *validMetric)
 	if err != nil {
 		handleGetterError(err, res, req)
 		return
@@ -131,7 +140,9 @@ func (r *MetricsRouter) getAsTextHandler(res http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	responseMetric, err := r.metricsUsecase.GetMetric(*validMetric)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	responseMetric, err := r.metricsUsecase.GetMetric(ctx, *validMetric)
 	if err != nil {
 		handleGetterError(err, res, req)
 		return
@@ -196,7 +207,9 @@ func (r *MetricsRouter) updateFromJSONHandler(res http.ResponseWriter, req *http
 		return
 	}
 
-	updatedMetric, err := r.metricsUsecase.UpdateMetric(*validMetric)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	updatedMetric, err := r.metricsUsecase.UpdateMetric(ctx, *validMetric)
 	if err != nil {
 		handleUpdateError(err, res, req)
 		return
@@ -223,7 +236,9 @@ func (r *MetricsRouter) updateFromURLHandler(res http.ResponseWriter, req *http.
 		return
 	}
 
-	if _, err := r.metricsUsecase.UpdateMetric(*validMetric); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := r.metricsUsecase.UpdateMetric(ctx, *validMetric); err != nil {
 		handleUpdateError(err, res, req)
 		return
 	}
@@ -263,7 +278,9 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 }
 
 func (r *MetricsRouter) ping(res http.ResponseWriter, req *http.Request) {
-	if err := r.metricsUsecase.Ping(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := r.metricsUsecase.Ping(ctx); err != nil {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 		return
 	}

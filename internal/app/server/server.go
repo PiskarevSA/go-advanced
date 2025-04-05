@@ -19,12 +19,12 @@ import (
 )
 
 type usecaseStorage interface {
-	GetMetric(metric entities.Metric) (*entities.Metric, error)
-	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
-	GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge,
-		counter map[entities.MetricName]entities.Counter)
-	Ping() error
-	Close() error
+	GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	GetMetricsByTypes(ctx context.Context, gauge map[entities.MetricName]entities.Gauge,
+		counter map[entities.MetricName]entities.Counter) error
+	Ping(ctx context.Context) error
+	Close(ctx context.Context) error
 }
 
 type Server struct {
@@ -77,8 +77,10 @@ func (s *Server) startWorkers(
 	// Wait group to ensure all goroutines finish before exiting
 	var wg sync.WaitGroup
 
-	s.createStorage(ctx, &wg)
-	defer s.storage.Close()
+	if !s.createStorage(ctx, &wg) {
+		return false
+	}
+	defer s.storage.Close(ctx)
 
 	s.createMetricsUsecase()
 
@@ -94,9 +96,14 @@ func (s *Server) startWorkers(
 	return success
 }
 
-func (s *Server) createStorage(ctx context.Context, wg *sync.WaitGroup) {
+func (s *Server) createStorage(ctx context.Context, wg *sync.WaitGroup) bool {
 	if len(s.config.DatabaseDSN) > 0 {
-		s.storage = storage.NewPgStorage(s.config.DatabaseDSN)
+		var err error
+		s.storage, err = storage.NewPgStorage(ctx, s.config.DatabaseDSN)
+		if err != nil {
+			slog.Error("[main] create pgstorage", "error", err.Error())
+			return false
+		}
 		slog.Info("[main] pgstorage created")
 	} else if len(s.config.FileStoragePath) > 0 {
 		filestorage := storage.NewFileStorage(ctx, wg,
@@ -107,6 +114,7 @@ func (s *Server) createStorage(ctx context.Context, wg *sync.WaitGroup) {
 		s.storage = storage.NewMemStorage()
 		slog.Info("[main] memstorage created")
 	}
+	return true
 }
 
 func (s *Server) createMetricsUsecase() {

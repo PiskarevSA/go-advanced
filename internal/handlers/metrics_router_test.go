@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -51,7 +52,8 @@ func (m *mockUsecase) expectCall(mockCallParams any) *mockUsecase {
 	return m
 }
 
-func (m *mockUsecase) GetMetric(metric entities.Metric) (*entities.Metric, error) {
+func (m *mockUsecase) GetMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockGetMetricArgs)
 	assert.Equal(m.t, args.metric, metric)
@@ -59,7 +61,8 @@ func (m *mockUsecase) GetMetric(metric entities.Metric) (*entities.Metric, error
 	return args.result, args.err
 }
 
-func (m *mockUsecase) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
+func (m *mockUsecase) UpdateMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockUpdateMetricArgs)
 	assert.Equal(m.t, args.metric, metric)
@@ -67,12 +70,13 @@ func (m *mockUsecase) UpdateMetric(metric entities.Metric) (*entities.Metric, er
 	return args.result, args.err
 }
 
-func (m *mockUsecase) DumpIterator() func() (type_ string, name string, value string, exists bool) {
+func (m *mockUsecase) DumpIterator(ctx context.Context,
+) (func() (type_ string, name string, value string, exists bool), error) {
 	require.Fail(m.t, "unexpected call")
-	return nil
+	return nil, nil
 }
 
-func (m *mockUsecase) Ping() error {
+func (m *mockUsecase) Ping(ctx context.Context) error {
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockPingArgs)
 	m.callIndex += 1
