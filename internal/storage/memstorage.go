@@ -94,12 +94,10 @@ func (s *MemStorage) GetMetricsByTypes(ctx context.Context,
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	gauge = make(map[entities.MetricName]entities.Gauge)
 	for k, v := range s.GaugeMap {
 		gauge[k] = v
 	}
 
-	counter = make(map[entities.MetricName]entities.Counter)
 	for k, v := range s.CounterMap {
 		counter[k] = v
 	}
