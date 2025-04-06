@@ -19,7 +19,7 @@ type InvalidMetricTypeError struct {
 	MetricType string
 }
 
-func NewInvalidMetricTypeError(metricType string) *InvalidMetricTypeError {
+func NewInvalidMetricTypeError(metricType string) error {
 	return &InvalidMetricTypeError{MetricType: metricType}
 }
 
@@ -32,7 +32,7 @@ type MetricNameNotFoundError struct {
 	MetricName MetricName
 }
 
-func NewMetricNameNotFoundError(metricName MetricName) *MetricNameNotFoundError {
+func NewMetricNameNotFoundError(metricName MetricName) error {
 	return &MetricNameNotFoundError{MetricName: metricName}
 }
 
@@ -45,7 +45,7 @@ type MetricValueIsNotValidError struct {
 	error
 }
 
-func NewMetricValueIsNotValidError(error error) *MetricValueIsNotValidError {
+func NewMetricValueIsNotValidError(error error) error {
 	return &MetricValueIsNotValidError{error: error}
 }
 
@@ -62,7 +62,7 @@ type JSONRequestDecodeError struct {
 	error
 }
 
-func NewJSONRequestDecodeError(error error) *JSONRequestDecodeError {
+func NewJSONRequestDecodeError(error error) error {
 	return &JSONRequestDecodeError{error: error}
 }
 
@@ -79,7 +79,7 @@ type InternalError struct {
 	message string
 }
 
-func NewInternalError(message string) *InternalError {
+func NewInternalError(message string) error {
 	return &InternalError{message: message}
 }
 
