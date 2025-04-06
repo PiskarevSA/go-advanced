@@ -6,7 +6,7 @@ create table gauge (
 
 create table counter (
 	name text not null primary key,
-	value int
+	value bigint
 );
 
 -- +goose Down
