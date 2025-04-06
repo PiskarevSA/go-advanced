@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -76,6 +77,48 @@ func ConvertMetricFromUpdateFromJSONRequest(req *http.Request) (*entities.Metric
 	return &result, nil
 }
 
+func ConvertBatchMetricFromUpdateFromJSONRequest(req *http.Request) ([]entities.Metric, error) {
+	if req.Header.Get("Content-Type") != "application/json" {
+		return nil, entities.ErrJSONRequestExpected
+	}
+	var metrics []models.Metric
+	if err := json.NewDecoder(req.Body).Decode(&metrics); err != nil {
+		return nil, entities.NewJSONRequestDecodeError(err)
+	}
+	var result []entities.Metric
+	for i, metric := range metrics {
+		var entityMetric entities.Metric
+		var err error
+		entityMetric.Type, err = convertMetricType(metric.MType)
+		if err != nil {
+			return nil, fmt.Errorf("metric[%v]: %w", i, err)
+		}
+		entityMetric.Name, err = convertMetricName(metric.ID)
+		if err != nil {
+			return nil, fmt.Errorf("metric[%v]: %w", i, err)
+		}
+		switch entityMetric.Type {
+		case entities.MetricTypeGauge:
+			if metric.Value == nil {
+				return nil, fmt.Errorf("metric[%v]: %w", i, entities.ErrMissingValue)
+			}
+			entityMetric.Value = entities.Gauge(*metric.Value)
+		case entities.MetricTypeCounter:
+			if metric.Delta == nil {
+				return nil, fmt.Errorf("metric[%v]: %w", i, entities.ErrMissingDelta)
+			}
+			entityMetric.Delta = entities.Counter(*metric.Delta)
+		default:
+			return nil, entities.NewInternalError(
+				fmt.Sprintf(
+					"metric[%v]: unexpected internal metric type: %v",
+					i, entityMetric.Type.String()))
+		}
+		result = append(result, entityMetric)
+	}
+	return result, nil
+}
+
 func ConvertMetricFromGetGetAsTextRequest(req *http.Request) (*entities.Metric, error) {
 	metricType := chi.URLParam(req, "type")
 	metricName := chi.URLParam(req, "name")
@@ -147,6 +190,18 @@ func ConvertEntityMetric(metric entities.Metric) (*models.Metric, error) {
 	}
 	result.ID = string(metric.Name)
 	return &result, nil
+}
+
+func ConvertEntityMetrics(metrics []entities.Metric) ([]models.Metric, error) {
+	result := make([]models.Metric, 0)
+	for i, entityMetric := range metrics {
+		metric, err := ConvertEntityMetric(entityMetric)
+		if err != nil {
+			return nil, fmt.Errorf("metric[%v]: %w", i, err)
+		}
+		result = append(result, *metric)
+	}
+	return result, nil
 }
 
 func convertMetricType(metricType string) (entities.MetricType, error) {

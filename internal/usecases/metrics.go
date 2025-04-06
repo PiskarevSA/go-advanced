@@ -11,6 +11,7 @@ import (
 type storage interface {
 	GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
 	UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	UpdateMetrics(ctx context.Context, metrics []entities.Metric) ([]entities.Metric, error)
 	GetMetricsByTypes(ctx context.Context, gauge map[entities.MetricName]entities.Gauge,
 		counter map[entities.MetricName]entities.Counter) error
 	Ping(ctx context.Context) error
@@ -78,12 +79,19 @@ func NewMetricsUsecase(storage storage) *MetricsUsecase {
 	}
 }
 
-func (m *MetricsUsecase) GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error) {
+func (m *MetricsUsecase) GetMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
 	return m.storage.GetMetric(ctx, metric)
 }
 
-func (m *MetricsUsecase) UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error) {
+func (m *MetricsUsecase) UpdateMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
 	return m.storage.UpdateMetric(ctx, metric)
+}
+
+func (m *MetricsUsecase) UpdateMetrics(ctx context.Context, metrics []entities.Metric,
+) ([]entities.Metric, error) {
+	return m.storage.UpdateMetrics(ctx, metrics)
 }
 
 func (m *MetricsUsecase) DumpIterator(ctx context.Context) (func() (type_ string, name string, value string, exists bool), error) {

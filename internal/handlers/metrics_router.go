@@ -38,6 +38,7 @@ const (
 type metricsUsecase interface {
 	GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
 	UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	UpdateMetrics(ctx context.Context, metrics []entities.Metric) ([]entities.Metric, error)
 	DumpIterator(ctx context.Context) (func() (type_ string, name string, value string, exists bool), error)
 	Ping(ctx context.Context) error
 }
@@ -62,6 +63,7 @@ func (r *MetricsRouter) WithMiddlewares(middlewares ...func(http.Handler) http.H
 func (r *MetricsRouter) WithAllHandlers() *MetricsRouter {
 	r.Get(`/`, r.mainPageHandler)
 	r.Post(`/update/`, r.updateFromJSONHandler)
+	r.Post(`/updates/`, r.updateBatchFromJSONHandler)
 	r.Post(`/update/{type}/{name}/{value}`, r.updateFromURLHandler)
 	r.Post(`/value/`, r.getAsJSONHandler)
 	r.Get(`/value/{type}/{name}`, r.getAsTextHandler)
@@ -99,7 +101,7 @@ func (r *MetricsRouter) mainPageHandler(res http.ResponseWriter, req *http.Reque
 	}
 }
 
-// getAsJSONHandler handles endpoint: POST /value
+// getAsJSONHandler handles endpoint: POST /value/
 // request type: "application/json", body: models.Metric
 // response	type: "application/json", body: models.Metric
 func (r *MetricsRouter) getAsJSONHandler(res http.ResponseWriter, req *http.Request) {
@@ -197,7 +199,7 @@ func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// updateFromJSONHandler handles endpoint: POST /update
+// updateFromJSONHandler handles endpoint: POST /update/
 // request type: "application/json", body: models.Metric
 // response	type: "application/json", body: models.Metric
 func (r *MetricsRouter) updateFromJSONHandler(res http.ResponseWriter, req *http.Request) {
@@ -216,6 +218,35 @@ func (r *MetricsRouter) updateFromJSONHandler(res http.ResponseWriter, req *http
 	}
 	// success
 	response, err := adapters.ConvertEntityMetric(*updatedMetric)
+	if err != nil {
+		handleUpdateError(err, res, req)
+	}
+	res.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(res).Encode(response); err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// updateBatchFromJSONHandler handles endpoint: POST /updates/
+// request type: "application/json", body: []models.Metric
+// response type: "application/json", body: []models.Metric
+func (r *MetricsRouter) updateBatchFromJSONHandler(res http.ResponseWriter, req *http.Request) {
+	validMetrics, err := adapters.ConvertBatchMetricFromUpdateFromJSONRequest(req)
+	if err != nil {
+		handleUpdateError(err, res, req)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	updatedMetrics, err := r.metricsUsecase.UpdateMetrics(ctx, validMetrics)
+	if err != nil {
+		handleUpdateError(err, res, req)
+		return
+	}
+	// success
+	response, err := adapters.ConvertEntityMetrics(updatedMetrics)
 	if err != nil {
 		handleUpdateError(err, res, req)
 	}

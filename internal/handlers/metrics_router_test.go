@@ -30,6 +30,14 @@ type mockUpdateMetricArgs struct {
 	err    error
 }
 
+type mockUpdateMetricsArgs struct {
+	// input
+	metrics []entities.Metric
+	// output
+	result []entities.Metric
+	err    error
+}
+
 type mockPingArgs struct {
 	// output
 	err error
@@ -66,6 +74,15 @@ func (m *mockUsecase) UpdateMetric(ctx context.Context, metric entities.Metric,
 	require.Less(m.t, m.callIndex, len(m.mockCallParams))
 	args := m.mockCallParams[m.callIndex].(mockUpdateMetricArgs)
 	assert.Equal(m.t, args.metric, metric)
+	m.callIndex += 1
+	return args.result, args.err
+}
+
+func (m *mockUsecase) UpdateMetrics(ctx context.Context, metrics []entities.Metric,
+) ([]entities.Metric, error) {
+	require.Less(m.t, m.callIndex, len(m.mockCallParams))
+	args := m.mockCallParams[m.callIndex].(mockUpdateMetricsArgs)
+	assert.Equal(m.t, args.metrics, metrics)
 	m.callIndex += 1
 	return args.result, args.err
 }
@@ -398,6 +415,183 @@ func TestMetricsRouterJSON(t *testing.T) {
 			want: want{
 				code:        http.StatusNotFound,
 				response:    "404 page not found",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewMetricsRouter(tt.given.mockUsecase).WithAllHandlers()
+			ts := httptest.NewServer(r)
+			defer ts.Close()
+
+			respCode, respContentType, respBody := testRequestJSON(
+				t, ts, tt.given.method, tt.given.url, tt.given.body)
+			// проверяем параметры ответа
+			assert.Equal(t, tt.want.code, respCode)
+			assert.Equal(t, tt.want.contentType, respContentType)
+			assert.Equal(t, tt.want.response, strings.TrimSpace(respBody))
+			assert.Equal(t, len(tt.given.mockUsecase.mockCallParams),
+				tt.given.mockUsecase.callIndex)
+		})
+	}
+}
+
+func TestMetricsRouterUpdateBatchJSON(t *testing.T) {
+	type given struct {
+		method      string
+		url         string
+		body        string
+		mockUsecase *mockUsecase
+	}
+	type want struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		name  string
+		given given
+		want  want
+	}{
+		{
+			name: "update batch: positive",
+			given: given{
+				method: http.MethodPost,
+				url:    "/updates/",
+				body:   `[{"id":"foo","type":"gauge","value":1.23},{"id":"bar","type":"counter","delta":456}]`,
+				mockUsecase: newMockUsecase(t).
+					expectCall(mockUpdateMetricsArgs{
+						// input
+						metrics: []entities.Metric{
+							{
+								Type:  entities.MetricTypeGauge,
+								Name:  "foo",
+								Value: 1.23,
+							},
+							{
+								Type:  entities.MetricTypeCounter,
+								Name:  "bar",
+								Delta: 456,
+							},
+						},
+						// output
+						result: []entities.Metric{
+							{
+								Type:  entities.MetricTypeGauge,
+								Name:  "foo",
+								Value: 1.23,
+							}, {
+								Type:  entities.MetricTypeCounter,
+								Name:  "bar",
+								Delta: 456,
+							},
+						},
+						err: nil,
+					}),
+			},
+			want: want{
+				code:        http.StatusOK,
+				response:    `[{"id":"foo","type":"gauge","value":1.23},{"id":"bar","type":"counter","delta":456}]`,
+				contentType: "application/json",
+			},
+		},
+		{
+			name: "update batch: invalid method",
+			given: given{
+				method:      http.MethodPatch,
+				url:         "/updates/",
+				body:        `[{"id":"foo","type":"gauge","delta":1.23}]`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusMethodNotAllowed,
+				response:    "",
+				contentType: "",
+			},
+		},
+		{
+			name: "update batch: empty metric type",
+			given: given{
+				method:      http.MethodPost,
+				url:         "/updates/",
+				body:        `[{}]`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "metric[0]: invalid metric type:",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update batch: unexpected metric type",
+			given: given{
+				method:      http.MethodPost,
+				url:         "/updates/",
+				body:        `[{"type":"foo"}]`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "metric[0]: invalid metric type: foo",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update batch: empty metric name",
+			given: given{
+				method:      http.MethodPost,
+				url:         "/updates/",
+				body:        `[{"type":"gauge"}]`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusNotFound,
+				response:    "404 page not found",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update batch: empty metric value",
+			given: given{
+				method:      http.MethodPost,
+				url:         "/updates/",
+				body:        `[{"id":"foo","type":"gauge"}]`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "metric[0]: missing value",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update batch: incorrect gauge value",
+			given: given{
+				method:      http.MethodPost,
+				url:         "/updates/",
+				body:        `[{"id":"foo","type":"gauge","value":"str_value"}]`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "json request decoding: json: cannot unmarshal string into Go struct field Metric.value of type float64",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "update batch: incorrect counter value",
+			given: given{
+				method:      http.MethodPost,
+				url:         "/updates/",
+				body:        `[{"id":"foo","type":"counter","delta":"str_value"}]`,
+				mockUsecase: newMockUsecase(t),
+			},
+			want: want{
+				code:        http.StatusBadRequest,
+				response:    "json request decoding: json: cannot unmarshal string into Go struct field Metric.delta of type int64",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},

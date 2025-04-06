@@ -21,6 +21,7 @@ import (
 type usecaseStorage interface {
 	GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
 	UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	UpdateMetrics(ctx context.Context, metrics []entities.Metric) ([]entities.Metric, error)
 	GetMetricsByTypes(ctx context.Context, gauge map[entities.MetricName]entities.Gauge,
 		counter map[entities.MetricName]entities.Counter) error
 	Ping(ctx context.Context) error
