@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -80,7 +81,7 @@ func (r *MetricsRouter) mainPageHandler(res http.ResponseWriter, req *http.Reque
 	defer cancel()
 	metricsIterator, err := r.metricsUsecase.DumpIterator(ctx)
 	if err != nil {
-		http.Error(res, err.Error(), http.StatusInternalServerError)
+		handleAsInternalServerError(err, res)
 	}
 
 	var rows string
@@ -97,7 +98,7 @@ func (r *MetricsRouter) mainPageHandler(res http.ResponseWriter, req *http.Reque
 	res.Header().Set("Content-Type", "text/html")
 	_, err = res.Write([]byte(doc))
 	if err != nil {
-		http.Error(res, err.Error(), http.StatusInternalServerError)
+		handleAsInternalServerError(err, res)
 	}
 }
 
@@ -127,7 +128,7 @@ func (r *MetricsRouter) getAsJSONHandler(res http.ResponseWriter, req *http.Requ
 	}
 	res.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(res).Encode(response); err != nil {
-		http.Error(res, err.Error(), http.StatusInternalServerError)
+		handleAsInternalServerError(err, res)
 		return
 	}
 }
@@ -197,6 +198,7 @@ func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
 		// unexpected error
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 	}
+	slog.Error("getter error handled", "error", err)
 }
 
 // updateFromJSONHandler handles endpoint: POST /update/
@@ -223,7 +225,7 @@ func (r *MetricsRouter) updateFromJSONHandler(res http.ResponseWriter, req *http
 	}
 	res.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(res).Encode(response); err != nil {
-		http.Error(res, err.Error(), http.StatusInternalServerError)
+		handleAsInternalServerError(err, res)
 		return
 	}
 }
@@ -252,7 +254,7 @@ func (r *MetricsRouter) updateBatchFromJSONHandler(res http.ResponseWriter, req 
 	}
 	res.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(res).Encode(response); err != nil {
-		http.Error(res, err.Error(), http.StatusInternalServerError)
+		handleAsInternalServerError(err, res)
 		return
 	}
 }
@@ -306,15 +308,21 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 		// unexpected error
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 	}
+	slog.Error("update error handled", "error", err)
 }
 
 func (r *MetricsRouter) ping(res http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := r.metricsUsecase.Ping(ctx); err != nil {
-		http.Error(res, err.Error(), http.StatusInternalServerError)
+		handleAsInternalServerError(err, res)
 		return
 	}
 	res.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	res.WriteHeader(http.StatusOK)
+}
+
+func handleAsInternalServerError(err error, res http.ResponseWriter) {
+	slog.Error("internal error handled", "error", err)
+	http.Error(res, err.Error(), http.StatusInternalServerError)
 }

@@ -29,7 +29,9 @@ type IteratableDump struct {
 	index int
 }
 
-func NewIteratableDump(gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) *IteratableDump {
+func NewIteratableDump(gauge map[entities.MetricName]entities.Gauge,
+	counter map[entities.MetricName]entities.Counter,
+) *IteratableDump {
 	result := IteratableDump{}
 
 	var keys []string
