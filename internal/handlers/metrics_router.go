@@ -36,6 +36,8 @@ const (
 		</tr>`
 )
 
+const timeout = 15 * time.Second
+
 type metricsUsecase interface {
 	GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
 	UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
@@ -77,7 +79,7 @@ func (r *MetricsRouter) WithAllHandlers() *MetricsRouter {
 // request: none
 // response	type: "text/html", body: html document containing dumped metrics
 func (r *MetricsRouter) mainPageHandler(res http.ResponseWriter, req *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	metricsIterator, err := r.metricsUsecase.DumpIterator(ctx)
 	if err != nil {
@@ -112,7 +114,7 @@ func (r *MetricsRouter) getAsJSONHandler(res http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	responseMetric, err := r.metricsUsecase.GetMetric(ctx, *validMetric)
 	if err != nil {
@@ -143,7 +145,7 @@ func (r *MetricsRouter) getAsTextHandler(res http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	responseMetric, err := r.metricsUsecase.GetMetric(ctx, *validMetric)
 	if err != nil {
@@ -211,7 +213,7 @@ func (r *MetricsRouter) updateFromJSONHandler(res http.ResponseWriter, req *http
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	updatedMetric, err := r.metricsUsecase.UpdateMetric(ctx, *validMetric)
 	if err != nil {
@@ -240,7 +242,7 @@ func (r *MetricsRouter) updateBatchFromJSONHandler(res http.ResponseWriter, req 
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	updatedMetrics, err := r.metricsUsecase.UpdateMetrics(ctx, validMetrics)
 	if err != nil {
@@ -269,7 +271,7 @@ func (r *MetricsRouter) updateFromURLHandler(res http.ResponseWriter, req *http.
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if _, err := r.metricsUsecase.UpdateMetric(ctx, *validMetric); err != nil {
 		handleUpdateError(err, res, req)
@@ -312,7 +314,7 @@ func handleUpdateError(err error, res http.ResponseWriter, req *http.Request) {
 }
 
 func (r *MetricsRouter) ping(res http.ResponseWriter, req *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := r.metricsUsecase.Ping(ctx); err != nil {
 		handleAsInternalServerError(err, res)

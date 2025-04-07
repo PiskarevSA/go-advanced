@@ -30,7 +30,7 @@ type Agent struct {
 func NewAgent() *Agent {
 	return &Agent{
 		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 15 * time.Second,
 			Transport: &retryableTransport{
 				transport: &http.Transport{},
 			},
