@@ -5,13 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
+
+const retryCount = 3
 
 type PgStorage struct {
 	databaseDSN string
@@ -35,17 +40,90 @@ func NewPgStorage(ctx context.Context, databaseDSN string) (*PgStorage, error) {
 	return result, nil
 }
 
+func shouldRetry(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgerrcode.IsConnectionException(pgErr.Code)
+}
+
+func backoff(retries int) time.Duration {
+	return time.Duration(1+2*retries) * time.Second
+}
+
+func (s *PgStorage) queryRowWithRetries(
+	ctx context.Context, optionalTx pgx.Tx, query string, valuePtr any, args ...any,
+) error {
+	var err error
+
+	doQuery := func() {
+		var row pgx.Row
+		if optionalTx != nil {
+			row = optionalTx.QueryRow(ctx, query, args...)
+		} else {
+			row = s.pool.QueryRow(ctx, query, args...)
+		}
+		err = row.Scan(valuePtr)
+	}
+
+	doQuery()
+
+	retries := 0
+	for shouldRetry(err) && retries < retryCount {
+		time.Sleep(backoff(retries))
+		doQuery()
+		retries++
+	}
+	return err
+}
+
+func (s *PgStorage) queryRowsWithRetries(
+	ctx context.Context, tx pgx.Tx, query string,
+	makeScanDest func() []any, saveScanDest func(), args ...any,
+) error {
+	var err error
+
+	doQuery := func() {
+		var rows pgx.Rows
+		rows, err = tx.Query(ctx, query, args...)
+		if err != nil {
+			err = entities.NewInternalError("sql query error: "+err.Error(), err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			dest := makeScanDest()
+			if err = rows.Scan(dest...); err != nil {
+				err = entities.NewInternalError("sql query error: "+err.Error(), err)
+			}
+			saveScanDest()
+		}
+		if rows.Err() != nil {
+			err = entities.NewInternalError("sql query error: "+rows.Err().Error(), err)
+		}
+	}
+
+	doQuery()
+
+	retries := 0
+	for shouldRetry(err) && retries < retryCount {
+		time.Sleep(backoff(retries))
+		doQuery()
+		retries++
+	}
+	return err
+}
+
 func (s *PgStorage) GetMetric(ctx context.Context, metric entities.Metric,
 ) (*entities.Metric, error) {
 	switch metric.Type {
 	case entities.MetricTypeGauge:
-		row := s.pool.QueryRow(ctx, "select value from gauge where name = $1", metric.Name)
+		query := "select value from gauge where name = $1"
 		var value entities.Gauge
-		err := row.Scan(&value)
+		err := s.queryRowWithRetries(
+			ctx, nil, query, &value, metric.Name)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, entities.NewMetricNameNotFoundError(metric.Name)
 		} else if err != nil {
-			return nil, entities.NewInternalError("sql query error: " + err.Error())
+			return nil, entities.NewInternalError("sql query error: "+err.Error(), err)
 		}
 		result := entities.Metric{
 			Type:  metric.Type,
@@ -55,13 +133,14 @@ func (s *PgStorage) GetMetric(ctx context.Context, metric entities.Metric,
 		}
 		return &result, nil
 	case entities.MetricTypeCounter:
-		row := s.pool.QueryRow(ctx, "select value from counter where name = $1", metric.Name)
+		query := "select value from counter where name = $1"
 		var value entities.Counter
-		err := row.Scan(&value)
+		err := s.queryRowWithRetries(
+			ctx, nil, query, &value, metric.Name)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, entities.NewMetricNameNotFoundError(metric.Name)
 		} else if err != nil {
-			return nil, entities.NewInternalError("sql query error: " + err.Error())
+			return nil, entities.NewInternalError("sql query error: "+err.Error(), err)
 		}
 		result := entities.Metric{
 			Type:  metric.Type,
@@ -72,7 +151,7 @@ func (s *PgStorage) GetMetric(ctx context.Context, metric entities.Metric,
 		return &result, nil
 	}
 	return nil, entities.NewInternalError(
-		"unexpected internal metric type: " + metric.Type.String())
+		"unexpected internal metric type: "+metric.Type.String(), nil)
 }
 
 func (s *PgStorage) UpdateMetric(ctx context.Context, metric entities.Metric,
@@ -92,16 +171,11 @@ func (s *PgStorage) updateMetric(
 			"do update set",
 			"  value = excluded.value",
 			"returning value")
-		var row pgx.Row
-		if optionalTx != nil {
-			row = optionalTx.QueryRow(ctx, query, metric.Name, metric.Value)
-		} else {
-			row = s.pool.QueryRow(ctx, query, metric.Name, metric.Value)
-		}
 		var value entities.Gauge
-		err := row.Scan(&value)
+		err := s.queryRowWithRetries(
+			ctx, optionalTx, query, &value, metric.Name, metric.Value)
 		if err != nil {
-			return nil, entities.NewInternalError("sql query error: " + err.Error())
+			return nil, entities.NewInternalError("sql query error: "+err.Error(), err)
 		}
 
 		result := entities.Metric{
@@ -119,16 +193,11 @@ func (s *PgStorage) updateMetric(
 			"do update set",
 			"  value = counter.value + excluded.value",
 			"returning value")
-		var row pgx.Row
-		if optionalTx != nil {
-			row = optionalTx.QueryRow(ctx, query, metric.Name, metric.Delta)
-		} else {
-			row = s.pool.QueryRow(ctx, query, metric.Name, metric.Delta)
-		}
 		var value entities.Counter
-		err := row.Scan(&value)
+		err := s.queryRowWithRetries(
+			ctx, optionalTx, query, &value, metric.Name, metric.Delta)
 		if err != nil {
-			return nil, entities.NewInternalError("sql query error: " + err.Error())
+			return nil, entities.NewInternalError("sql query error: "+err.Error(), err)
 		}
 
 		result := entities.Metric{
@@ -140,14 +209,14 @@ func (s *PgStorage) updateMetric(
 		return &result, nil
 	}
 	return nil, entities.NewInternalError(
-		"unexpected internal metric type: " + metric.Type.String())
+		"unexpected internal metric type: "+metric.Type.String(), nil)
 }
 
 func (s *PgStorage) UpdateMetrics(ctx context.Context, metrics []entities.Metric,
 ) ([]entities.Metric, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return nil, entities.NewInternalError("database error: " + err.Error())
+		return nil, entities.NewInternalError("database error: "+err.Error(), err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -160,7 +229,7 @@ func (s *PgStorage) UpdateMetrics(ctx context.Context, metrics []entities.Metric
 		result = append(result, *updatedMetric)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return nil, entities.NewInternalError("database error: " + err.Error())
+		return nil, entities.NewInternalError("database error: "+err.Error(), err)
 	}
 	return result, nil
 }
@@ -172,45 +241,29 @@ func (s *PgStorage) GetMetricsByTypes(ctx context.Context,
 	// open transaction to ensure time consistency between gauges and counters
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return entities.NewInternalError("database error: " + err.Error())
+		return entities.NewInternalError("database error: "+err.Error(), err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	gaugeRows, err := tx.Query(ctx, "select name, value from gauge")
+	query := "select name, value from gauge"
+	var name entities.MetricName
+	var gaugeValue entities.Gauge
+	makeScanDest := func() []any { return []any{&name, &gaugeValue} }
+	saveScanDest := func() { gauge[name] = gaugeValue }
+	err = s.queryRowsWithRetries(ctx, tx, query, makeScanDest, saveScanDest)
 	if err != nil {
-		return entities.NewInternalError("sql query error: " + err.Error())
-	}
-	defer gaugeRows.Close()
-
-	for gaugeRows.Next() {
-		var name entities.MetricName
-		var value entities.Gauge
-		if err := gaugeRows.Scan(&name, &value); err != nil {
-			return entities.NewInternalError("sql query error: " + err.Error())
-		}
-		gauge[name] = value
-	}
-	if gaugeRows.Err() != nil {
-		return entities.NewInternalError("sql query error: " + gaugeRows.Err().Error())
+		return err
 	}
 
-	counterRows, err := tx.Query(ctx, "select name, value from counter")
+	query = "select name, value from counter"
+	var counterValue entities.Counter
+	makeScanDest = func() []any { return []any{&name, &counterValue} }
+	saveScanDest = func() { counter[name] = counterValue }
+	err = s.queryRowsWithRetries(ctx, tx, query, makeScanDest, saveScanDest)
 	if err != nil {
-		return entities.NewInternalError("sql query error: " + err.Error())
+		return err
 	}
-	defer counterRows.Close()
 
-	for counterRows.Next() {
-		var name entities.MetricName
-		var value entities.Counter
-		if err := counterRows.Scan(&name, &value); err != nil {
-			return entities.NewInternalError("sql query error: " + err.Error())
-		}
-		counter[name] = value
-	}
-	if counterRows.Err() != nil {
-		return entities.NewInternalError("sql query error: " + counterRows.Err().Error())
-	}
 	return nil
 }
 

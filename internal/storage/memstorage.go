@@ -54,7 +54,7 @@ func (s *MemStorage) GetMetric(ctx context.Context, metric entities.Metric,
 		return &result, nil
 	}
 	return nil, entities.NewInternalError(
-		"unexpected internal metric type: " + metric.Type.String())
+		"unexpected internal metric type: "+metric.Type.String(), nil)
 }
 
 func (s *MemStorage) UpdateMetric(ctx context.Context, metric entities.Metric,
@@ -85,7 +85,7 @@ func (s *MemStorage) UpdateMetric(ctx context.Context, metric entities.Metric,
 		return &result, nil
 	}
 	return nil, entities.NewInternalError(
-		"unexpected internal metric type: " + metric.Type.String())
+		"unexpected internal metric type: "+metric.Type.String(), nil)
 }
 
 func (s *MemStorage) UpdateMetrics(ctx context.Context, metrics []entities.Metric,
@@ -129,7 +129,7 @@ func (s *MemStorage) UpdateMetrics(ctx context.Context, metrics []entities.Metri
 		default:
 			return nil, entities.NewInternalError(fmt.Sprintf(
 				"metric[%v]: unexpected internal metric type: %v",
-				i, metric.Type.String()))
+				i, metric.Type.String()), nil)
 		}
 	}
 

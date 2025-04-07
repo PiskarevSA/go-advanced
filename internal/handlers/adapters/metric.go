@@ -72,7 +72,7 @@ func ConvertMetricFromUpdateFromJSONRequest(req *http.Request) (*entities.Metric
 		result.Delta = entities.Counter(*metric.Delta)
 	default:
 		return nil, entities.NewInternalError(
-			"unexpected internal metric type: " + result.Type.String())
+			"unexpected internal metric type: "+result.Type.String(), nil)
 	}
 	return &result, nil
 }
@@ -112,7 +112,7 @@ func ConvertBatchMetricFromUpdateFromJSONRequest(req *http.Request) ([]entities.
 			return nil, entities.NewInternalError(
 				fmt.Sprintf(
 					"metric[%v]: unexpected internal metric type: %v",
-					i, entityMetric.Type.String()))
+					i, entityMetric.Type.String()), nil)
 		}
 		result = append(result, entityMetric)
 	}
@@ -170,7 +170,7 @@ func ConvertMetricFromUpdateFromURLRequest(req *http.Request) (*entities.Metric,
 		result.Delta = entities.Counter(asInt64)
 	default:
 		return nil, entities.NewInternalError(
-			"unexpected internal metric type: " + result.Type.String())
+			"unexpected internal metric type: "+result.Type.String(), nil)
 	}
 	return &result, nil
 }
@@ -186,7 +186,7 @@ func ConvertEntityMetric(metric entities.Metric) (*models.Metric, error) {
 		result.Delta = (*int64)(&metric.Delta)
 	default:
 		return nil, entities.NewInternalError(
-			"unexpected internal metric type: " + metric.Type.String())
+			"unexpected internal metric type: "+metric.Type.String(), nil)
 	}
 	result.ID = string(metric.Name)
 	return &result, nil
