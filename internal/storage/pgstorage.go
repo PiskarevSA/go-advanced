@@ -73,15 +73,27 @@ func (s *PgStorage) GetMetric(ctx context.Context, metric entities.Metric,
 
 func (s *PgStorage) UpdateMetric(ctx context.Context, metric entities.Metric,
 ) (*entities.Metric, error) {
+	return s.updateMetric(ctx, nil, metric)
+}
+
+func (s *PgStorage) updateMetric(
+	ctx context.Context, optionalTx pgx.Tx, metric entities.Metric,
+) (*entities.Metric, error) {
 	switch metric.Type {
 	case entities.MetricTypeGauge:
-		row := s.pool.QueryRow(ctx, joinLines(
+		query := joinLines(
 			"insert into gauge (name, value)",
 			"values ($1, $2)",
 			"on conflict(name)",
 			"do update set",
 			"  value = excluded.value",
-			"returning value"), metric.Name, metric.Value)
+			"returning value")
+		var row pgx.Row
+		if optionalTx != nil {
+			row = optionalTx.QueryRow(ctx, query, metric.Name, metric.Value)
+		} else {
+			row = s.pool.QueryRow(ctx, query, metric.Name, metric.Value)
+		}
 		var value entities.Gauge
 		err := row.Scan(&value)
 		if err != nil {
@@ -96,13 +108,19 @@ func (s *PgStorage) UpdateMetric(ctx context.Context, metric entities.Metric,
 		}
 		return &result, nil
 	case entities.MetricTypeCounter:
-		row := s.pool.QueryRow(ctx, joinLines(
+		query := joinLines(
 			"insert into counter (name, value)",
 			"values ($1, $2)",
 			"on conflict(name)",
 			"do update set",
 			"  value = counter.value + excluded.value",
-			"returning value"), metric.Name, metric.Delta)
+			"returning value")
+		var row pgx.Row
+		if optionalTx != nil {
+			row = optionalTx.QueryRow(ctx, query, metric.Name, metric.Delta)
+		} else {
+			row = s.pool.QueryRow(ctx, query, metric.Name, metric.Delta)
+		}
 		var value entities.Counter
 		err := row.Scan(&value)
 		if err != nil {
@@ -131,7 +149,7 @@ func (s *PgStorage) UpdateMetrics(ctx context.Context, metrics []entities.Metric
 
 	result := make([]entities.Metric, 0)
 	for i, metric := range metrics {
-		updatedMetric, err := s.UpdateMetric(ctx, metric)
+		updatedMetric, err := s.updateMetric(ctx, tx, metric)
 		if err != nil {
 			return nil, fmt.Errorf("metric[%v]: %w", i, err)
 		}
@@ -147,7 +165,14 @@ func (s *PgStorage) GetMetricsByTypes(ctx context.Context,
 	gauge map[entities.MetricName]entities.Gauge,
 	counter map[entities.MetricName]entities.Counter,
 ) error {
-	gaugeRows, err := s.pool.Query(ctx, "select name, value from gauge")
+	// open transaction to ensure time consistency between gauges and counters
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return entities.NewInternalError("database error: " + err.Error())
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	gaugeRows, err := tx.Query(ctx, "select name, value from gauge")
 	if err != nil {
 		return entities.NewInternalError("sql query error: " + err.Error())
 	}
@@ -165,7 +190,7 @@ func (s *PgStorage) GetMetricsByTypes(ctx context.Context,
 		return entities.NewInternalError("sql query error: " + gaugeRows.Err().Error())
 	}
 
-	counterRows, err := s.pool.Query(ctx, "select name, value from counter")
+	counterRows, err := tx.Query(ctx, "select name, value from counter")
 	if err != nil {
 		return entities.NewInternalError("sql query error: " + err.Error())
 	}
