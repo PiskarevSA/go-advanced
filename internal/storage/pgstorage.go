@@ -44,6 +44,8 @@ func (s *PgStorage) GetMetric(ctx context.Context, metric entities.Metric,
 		err := row.Scan(&value)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, entities.NewMetricNameNotFoundError(metric.Name)
+		} else if err != nil {
+			return nil, entities.NewInternalError("sql query error: " + err.Error())
 		}
 		result := entities.Metric{
 			Type:  metric.Type,
@@ -58,6 +60,8 @@ func (s *PgStorage) GetMetric(ctx context.Context, metric entities.Metric,
 		err := row.Scan(&value)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, entities.NewMetricNameNotFoundError(metric.Name)
+		} else if err != nil {
+			return nil, entities.NewInternalError("sql query error: " + err.Error())
 		}
 		result := entities.Metric{
 			Type:  metric.Type,
