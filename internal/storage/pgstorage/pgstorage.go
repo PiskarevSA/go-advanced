@@ -186,7 +186,7 @@ func (s *PgStorage) UpdateMetrics(ctx context.Context, metrics []entities.Metric
 				values ($1, $2)
 				on conflict(name)
 				do update set
-				value = excluded.value
+				value = counter.value + excluded.value
 				returning value`
 				var value entities.Counter
 				row := tx.QueryRow(ctx, query, metric.Name, metric.Delta)
