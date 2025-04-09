@@ -1,4 +1,4 @@
-package storage
+package memstorage
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type MemStorage struct {
 	CounterMap map[entities.MetricName]entities.Counter `json:"counter"`
 }
 
-func NewMemStorage() *MemStorage {
+func New() *MemStorage {
 	return &MemStorage{
 		GaugeMap:   make(map[entities.MetricName]entities.Gauge),
 		CounterMap: make(map[entities.MetricName]entities.Counter),

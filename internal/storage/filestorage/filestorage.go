@@ -1,4 +1,4 @@
-package storage
+package filestorage
 
 import (
 	"context"
@@ -24,7 +24,7 @@ type FileStorage struct {
 	FileStoragePath string `json:"-"`
 }
 
-func NewFileStorage(ctx context.Context, wg *sync.WaitGroup,
+func New(ctx context.Context, wg *sync.WaitGroup,
 	storeInterval int, fileStoragePath string, restore bool,
 ) *FileStorage {
 	result := &FileStorage{

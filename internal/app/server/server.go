@@ -14,7 +14,9 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/PiskarevSA/go-advanced/internal/handlers"
 	"github.com/PiskarevSA/go-advanced/internal/middleware"
-	"github.com/PiskarevSA/go-advanced/internal/storage"
+	"github.com/PiskarevSA/go-advanced/internal/storage/filestorage"
+	"github.com/PiskarevSA/go-advanced/internal/storage/memstorage"
+	"github.com/PiskarevSA/go-advanced/internal/storage/pgstorage"
 	"github.com/PiskarevSA/go-advanced/internal/usecases"
 )
 
@@ -29,9 +31,7 @@ type usecaseStorage interface {
 }
 
 type Server struct {
-	storage usecaseStorage
-	usecase *usecases.MetricsUsecase
-	config  *Config
+	config *Config
 }
 
 func NewServer(config *Config) *Server {
@@ -45,7 +45,25 @@ func (s *Server) Run() bool {
 	ctx, cancel := s.setupSignalHandler()
 	defer cancel() // Ensure cancel is called at the end to clean up
 
-	return s.startWorkers(ctx, cancel)
+	// Wait group to ensure all goroutines finish before exiting
+	var wg sync.WaitGroup
+
+	storage := s.createStorage(ctx, &wg)
+	if storage == nil {
+		return false
+	}
+	defer storage.Close(ctx)
+
+	usecase := s.createMetricsUsecase(storage)
+
+	server := s.createServer(usecase)
+
+	success := true // will be false if listener could not be started
+	s.startWorkers(ctx, cancel, &wg, server, &success)
+
+	// Wait for all goroutines to finish
+	wg.Wait()
+	return success
 }
 
 func (s *Server) setupSignalHandler() (context.Context, context.CancelFunc) {
@@ -72,58 +90,43 @@ func (s *Server) setupSignalHandler() (context.Context, context.CancelFunc) {
 	return ctx, cancel
 }
 
-func (s *Server) startWorkers(
-	ctx context.Context, cancel context.CancelFunc,
-) bool {
-	// Wait group to ensure all goroutines finish before exiting
-	var wg sync.WaitGroup
-
-	if !s.createStorage(ctx, &wg) {
-		return false
-	}
-	defer s.storage.Close(ctx)
-
-	s.createMetricsUsecase()
-
-	server := s.createServer()
-
-	success := true
-	s.startListener(cancel, &wg, server, &success)
-
-	s.startWatchdog(ctx, &wg, server)
-
-	// Wait for all goroutines to finish
-	wg.Wait()
-	return success
+func (s *Server) startWorkers(ctx context.Context, cancel context.CancelFunc,
+	wg *sync.WaitGroup, server *http.Server, success *bool,
+) {
+	s.startListener(cancel, wg, server, success)
+	s.startWatchdog(ctx, wg, server)
 }
 
-func (s *Server) createStorage(ctx context.Context, wg *sync.WaitGroup) bool {
+func (s *Server) createStorage(ctx context.Context, wg *sync.WaitGroup,
+) usecaseStorage {
+	var result usecaseStorage
 	if len(s.config.DatabaseDSN) > 0 {
 		var err error
-		s.storage, err = storage.NewPgStorage(ctx, s.config.DatabaseDSN)
+		result, err = pgstorage.New(ctx, s.config.DatabaseDSN)
 		if err != nil {
 			slog.Error("[main] create pgstorage", "error", err.Error())
-			return false
+			return nil
 		}
 		slog.Info("[main] pgstorage created")
 	} else if len(s.config.FileStoragePath) > 0 {
-		filestorage := storage.NewFileStorage(ctx, wg,
+		filestorage := filestorage.New(ctx, wg,
 			s.config.StoreInterval, s.config.FileStoragePath, s.config.Restore)
-		s.storage = filestorage
+		result = filestorage
 		slog.Info("[main] filestorage created")
 	} else {
-		s.storage = storage.NewMemStorage()
+		result = memstorage.New()
 		slog.Info("[main] memstorage created")
 	}
-	return true
+	return result
 }
 
-func (s *Server) createMetricsUsecase() {
-	s.usecase = usecases.NewMetricsUsecase(s.storage)
+func (s *Server) createMetricsUsecase(storage usecaseStorage,
+) *usecases.MetricsUsecase {
+	return usecases.NewMetricsUsecase(storage)
 }
 
-func (s *Server) createServer() *http.Server {
-	r := handlers.NewMetricsRouter(s.usecase).
+func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
+	r := handlers.NewMetricsRouter(usecase).
 		WithMiddlewares(middleware.Summary, middleware.Encoding).
 		WithAllHandlers()
 	server := http.Server{

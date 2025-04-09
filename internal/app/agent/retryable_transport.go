@@ -16,7 +16,10 @@ type retryableTransport struct {
 func (t *retryableTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var bodyBytes []byte
 	if req.Body != nil {
-		bodyBytes, _ = io.ReadAll(req.Body)
+		var err error
+		if bodyBytes, err = io.ReadAll(req.Body); err != nil {
+			return nil, err
+		}
 		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
 

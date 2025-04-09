@@ -1,4 +1,4 @@
-package storage
+package pgstorage
 
 import (
 	"context"
@@ -27,7 +27,7 @@ func joinLines(lines ...string) string {
 	return strings.Join(lines, "\n")
 }
 
-func NewPgStorage(ctx context.Context, databaseDSN string) (*PgStorage, error) {
+func New(ctx context.Context, databaseDSN string) (*PgStorage, error) {
 	result := &PgStorage{
 		databaseDSN: databaseDSN,
 	}
@@ -86,6 +86,7 @@ func (s *PgStorage) queryRowsWithRetries(
 		rows, err = tx.Query(ctx, query, args...)
 		if err != nil {
 			err = entities.NewInternalError("sql query error: "+err.Error(), err)
+			return
 		}
 		defer rows.Close()
 
@@ -93,6 +94,7 @@ func (s *PgStorage) queryRowsWithRetries(
 			dest := makeScanDest()
 			if err = rows.Scan(dest...); err != nil {
 				err = entities.NewInternalError("sql query error: "+err.Error(), err)
+				return
 			}
 			saveScanDest()
 		}
