@@ -84,6 +84,7 @@ func (r *MetricsRouter) mainPageHandler(res http.ResponseWriter, req *http.Reque
 	metricsIterator, err := r.metricsUsecase.DumpIterator(ctx)
 	if err != nil {
 		handleAsInternalServerError(err, res)
+		return
 	}
 
 	var rows string

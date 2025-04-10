@@ -1,0 +1,8 @@
+force-file-write: true
+template: matryer
+structname: mock{{.InterfaceName | firstUpper}}
+  
+packages:
+  github.com/PiskarevSA/go-advanced/internal/handlers:
+    interfaces:
+      metricsUsecase:

@@ -13,6 +13,9 @@ import (
 )
 
 func shouldRetry(err error) bool {
+	if err == nil {
+		return false
+	}
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgerrcode.IsConnectionException(pgErr.Code)
 }
