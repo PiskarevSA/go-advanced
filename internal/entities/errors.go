@@ -19,7 +19,7 @@ type InvalidMetricTypeError struct {
 	MetricType string
 }
 
-func NewInvalidMetricTypeError(metricType string) *InvalidMetricTypeError {
+func NewInvalidMetricTypeError(metricType string) error {
 	return &InvalidMetricTypeError{MetricType: metricType}
 }
 
@@ -32,7 +32,7 @@ type MetricNameNotFoundError struct {
 	MetricName MetricName
 }
 
-func NewMetricNameNotFoundError(metricName MetricName) *MetricNameNotFoundError {
+func NewMetricNameNotFoundError(metricName MetricName) error {
 	return &MetricNameNotFoundError{MetricName: metricName}
 }
 
@@ -45,7 +45,7 @@ type MetricValueIsNotValidError struct {
 	error
 }
 
-func NewMetricValueIsNotValidError(error error) *MetricValueIsNotValidError {
+func NewMetricValueIsNotValidError(error error) error {
 	return &MetricValueIsNotValidError{error: error}
 }
 
@@ -62,7 +62,7 @@ type JSONRequestDecodeError struct {
 	error
 }
 
-func NewJSONRequestDecodeError(error error) *JSONRequestDecodeError {
+func NewJSONRequestDecodeError(error error) error {
 	return &JSONRequestDecodeError{error: error}
 }
 
@@ -77,12 +77,24 @@ func (e *JSONRequestDecodeError) Unwrap() error {
 // .. InternalError
 type InternalError struct {
 	message string
+	err     error
 }
 
-func NewInternalError(message string) *InternalError {
-	return &InternalError{message: message}
+func NewInternalError(message string, err error) error {
+	return &InternalError{
+		message: message,
+		err:     err,
+	}
 }
 
 func (e *InternalError) Error() string {
-	return fmt.Sprintf("internal error: %s", e.message)
+	if e.err != nil {
+		return fmt.Sprintf("internal error: %s: %v", e.message, e.err)
+	} else {
+		return fmt.Sprintf("internal error: %s", e.message)
+	}
+}
+
+func (e *InternalError) Unwrap() error {
+	return e.err
 }

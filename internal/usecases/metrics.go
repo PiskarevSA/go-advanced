@@ -1,20 +1,21 @@
 package usecases
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"sort"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
 )
 
 type storage interface {
-	GetMetric(metric entities.Metric) (*entities.Metric, error)
-	UpdateMetric(metric entities.Metric) (*entities.Metric, error)
-	GetMetricsByTypes() (gauge map[entities.MetricName]entities.Gauge,
-		counter map[entities.MetricName]entities.Counter)
-	Load(r io.Reader) error
-	Store(w io.Writer) error
+	GetMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	UpdateMetric(ctx context.Context, metric entities.Metric) (*entities.Metric, error)
+	UpdateMetrics(ctx context.Context, metrics []entities.Metric) ([]entities.Metric, error)
+	GetMetricsByTypes(ctx context.Context, gauge map[entities.MetricName]entities.Gauge,
+		counter map[entities.MetricName]entities.Counter) error
+	Ping(ctx context.Context) error
+	Close(ctx context.Context) error
 }
 
 type DumpRow struct {
@@ -28,7 +29,9 @@ type IteratableDump struct {
 	index int
 }
 
-func NewIteratableDump(gauge map[entities.MetricName]entities.Gauge, counter map[entities.MetricName]entities.Counter) *IteratableDump {
+func NewIteratableDump(gauge map[entities.MetricName]entities.Gauge,
+	counter map[entities.MetricName]entities.Counter,
+) *IteratableDump {
 	result := IteratableDump{}
 
 	var keys []string
@@ -69,8 +72,7 @@ func (d *IteratableDump) NextMetric() (
 
 // MetricsUsecase contains use cases, related to metrics creating, reading and updating
 type MetricsUsecase struct {
-	storage  storage
-	OnChange func()
+	storage storage
 }
 
 func NewMetricsUsecase(storage storage) *MetricsUsecase {
@@ -79,31 +81,32 @@ func NewMetricsUsecase(storage storage) *MetricsUsecase {
 	}
 }
 
-func (m *MetricsUsecase) GetMetric(metric entities.Metric) (*entities.Metric, error) {
-	return m.storage.GetMetric(metric)
+func (m *MetricsUsecase) GetMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
+	return m.storage.GetMetric(ctx, metric)
 }
 
-func (m *MetricsUsecase) UpdateMetric(metric entities.Metric) (*entities.Metric, error) {
-	return m.storage.UpdateMetric(metric)
+func (m *MetricsUsecase) UpdateMetric(ctx context.Context, metric entities.Metric,
+) (*entities.Metric, error) {
+	return m.storage.UpdateMetric(ctx, metric)
 }
 
-func (m *MetricsUsecase) DumpIterator() func() (type_ string, name string, value string, exists bool) {
-	gauge, counter := m.storage.GetMetricsByTypes()
+func (m *MetricsUsecase) UpdateMetrics(ctx context.Context, metrics []entities.Metric,
+) ([]entities.Metric, error) {
+	return m.storage.UpdateMetrics(ctx, metrics)
+}
+
+func (m *MetricsUsecase) DumpIterator(ctx context.Context) (func() (type_ string, name string, value string, exists bool), error) {
+	gauge := make(map[entities.MetricName]entities.Gauge)
+	counter := make(map[entities.MetricName]entities.Counter)
+	if err := m.storage.GetMetricsByTypes(ctx, gauge, counter); err != nil {
+		return nil, err
+	}
 
 	iteratableDump := NewIteratableDump(gauge, counter)
-	return iteratableDump.NextMetric
+	return iteratableDump.NextMetric, nil
 }
 
-func (m *MetricsUsecase) LoadMetrics(r io.Reader) error {
-	if err := m.storage.Load(r); err != nil {
-		return fmt.Errorf("load metrics: %w", err)
-	}
-	return nil
-}
-
-func (m *MetricsUsecase) StoreMetrics(w io.Writer) error {
-	if err := m.storage.Store(w); err != nil {
-		return fmt.Errorf("store metrics: %w", err)
-	}
-	return nil
+func (m *MetricsUsecase) Ping(ctx context.Context) error {
+	return m.storage.Ping(ctx)
 }

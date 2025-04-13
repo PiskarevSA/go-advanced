@@ -30,7 +30,10 @@ type Agent struct {
 func NewAgent() *Agent {
 	return &Agent{
 		httpClient: &http.Client{
-			Timeout: 5 * time.Second,
+			Timeout: 15 * time.Second,
+			Transport: &retryableTransport{
+				transport: &http.Transport{},
+			},
 		},
 		metrics: newMetrics(),
 	}
@@ -127,8 +130,11 @@ func (a *Agent) startReporter(
 		for {
 			pollCount, gauge, counter := a.metrics.Get()
 			// report
-			a.Report(ctx, serverAddress, gauge, counter)
-			slog.Info("[reporter] reported", "pollCount", pollCount)
+			if err := a.Report(serverAddress, gauge, counter); err != nil {
+				slog.Error("[reporter] report failed", "pollCount", pollCount, "error", err)
+			} else {
+				slog.Info("[reporter] report succeeded", "pollCount", pollCount)
+			}
 			// sleep reportInterval or interrupt
 			for t := time.Duration(0); t < reportInterval; t += updateInterval {
 				select {
@@ -144,30 +150,11 @@ func (a *Agent) startReporter(
 	}()
 }
 
-// sending a report consists of multiple HTTP requests; before each of them, it
-// is checked whether it is necessary to abort the execution
-func (a *Agent) Report(
-	ctx context.Context, serverAddress string, gauge map[string]gauge, counter map[string]counter,
-) {
-	url := "http://" + serverAddress + "/update/"
-	bodies := make([][]byte, 0, len(gauge)+len(counter))
-	var (
-		firstError error
-		errorCount int
-	)
+func (a *Agent) Report(serverAddress string, gauge map[string]gauge, counter map[string]counter,
+) error {
+	url := "http://" + serverAddress + "/updates/"
 
-	appendBodyFromMetricAsJSON := func(m models.Metric) {
-		body, err := json.Marshal(m)
-		if err != nil {
-			if errorCount == 0 {
-				firstError = err
-			}
-			errorCount += 1
-			return
-		}
-		bodies = append(bodies, body)
-	}
-
+	metrics := make([]models.Metric, 0, len(gauge)+len(counter))
 	for key, gauge := range gauge {
 		value := float64(gauge)
 		m := models.Metric{
@@ -175,7 +162,7 @@ func (a *Agent) Report(
 			MType: "gauge",
 			Value: &value,
 		}
-		appendBodyFromMetricAsJSON(m)
+		metrics = append(metrics, m)
 	}
 
 	for key, counter := range counter {
@@ -185,30 +172,18 @@ func (a *Agent) Report(
 			MType: "counter",
 			Delta: &delta,
 		}
-		appendBodyFromMetricAsJSON(m)
+		metrics = append(metrics, m)
 	}
 
-	slog.Info("[reporter] start reporting")
-	for _, body := range bodies {
-		select {
-		case <-ctx.Done():
-			// Handle context cancellation (graceful shutdown)
-			slog.Info("[reporter] interrupt reporting: %v\n", "error", ctx.Err())
-			return
-		default:
-			// send next metric
-			err := a.ReportToURL(url, body)
-			if err != nil {
-				if errorCount == 0 {
-					firstError = err
-				}
-				errorCount += 1
-			}
-		}
+	body, err := json.Marshal(metrics)
+	if err != nil {
+		return err
 	}
-	if errorCount > 0 {
-		slog.Info("[reporter]", "errorCount", errorCount, "firstError", firstError)
+
+	if err := a.ReportToURL(url, body); err != nil {
+		return err
 	}
+	return nil
 }
 
 func (a *Agent) ReportToURL(url string, body []byte) error {

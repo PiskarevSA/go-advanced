@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -71,9 +72,51 @@ func ConvertMetricFromUpdateFromJSONRequest(req *http.Request) (*entities.Metric
 		result.Delta = entities.Counter(*metric.Delta)
 	default:
 		return nil, entities.NewInternalError(
-			"unexpected internal metric type: " + result.Type.String())
+			"unexpected internal metric type: "+result.Type.String(), nil)
 	}
 	return &result, nil
+}
+
+func ConvertBatchMetricFromUpdateFromJSONRequest(req *http.Request) ([]entities.Metric, error) {
+	if req.Header.Get("Content-Type") != "application/json" {
+		return nil, entities.ErrJSONRequestExpected
+	}
+	var metrics []models.Metric
+	if err := json.NewDecoder(req.Body).Decode(&metrics); err != nil {
+		return nil, entities.NewJSONRequestDecodeError(err)
+	}
+	var result []entities.Metric
+	for i, metric := range metrics {
+		var entityMetric entities.Metric
+		var err error
+		entityMetric.Type, err = convertMetricType(metric.MType)
+		if err != nil {
+			return nil, fmt.Errorf("metric[%v]: %w", i, err)
+		}
+		entityMetric.Name, err = convertMetricName(metric.ID)
+		if err != nil {
+			return nil, fmt.Errorf("metric[%v]: %w", i, err)
+		}
+		switch entityMetric.Type {
+		case entities.MetricTypeGauge:
+			if metric.Value == nil {
+				return nil, fmt.Errorf("metric[%v]: %w", i, entities.ErrMissingValue)
+			}
+			entityMetric.Value = entities.Gauge(*metric.Value)
+		case entities.MetricTypeCounter:
+			if metric.Delta == nil {
+				return nil, fmt.Errorf("metric[%v]: %w", i, entities.ErrMissingDelta)
+			}
+			entityMetric.Delta = entities.Counter(*metric.Delta)
+		default:
+			return nil, entities.NewInternalError(
+				fmt.Sprintf(
+					"metric[%v]: unexpected internal metric type: %v",
+					i, entityMetric.Type.String()), nil)
+		}
+		result = append(result, entityMetric)
+	}
+	return result, nil
 }
 
 func ConvertMetricFromGetGetAsTextRequest(req *http.Request) (*entities.Metric, error) {
@@ -127,7 +170,7 @@ func ConvertMetricFromUpdateFromURLRequest(req *http.Request) (*entities.Metric,
 		result.Delta = entities.Counter(asInt64)
 	default:
 		return nil, entities.NewInternalError(
-			"unexpected internal metric type: " + result.Type.String())
+			"unexpected internal metric type: "+result.Type.String(), nil)
 	}
 	return &result, nil
 }
@@ -143,10 +186,22 @@ func ConvertEntityMetric(metric entities.Metric) (*models.Metric, error) {
 		result.Delta = (*int64)(&metric.Delta)
 	default:
 		return nil, entities.NewInternalError(
-			"unexpected internal metric type: " + metric.Type.String())
+			"unexpected internal metric type: "+metric.Type.String(), nil)
 	}
 	result.ID = string(metric.Name)
 	return &result, nil
+}
+
+func ConvertEntityMetrics(metrics []entities.Metric) ([]models.Metric, error) {
+	result := make([]models.Metric, 0)
+	for i, entityMetric := range metrics {
+		metric, err := ConvertEntityMetric(entityMetric)
+		if err != nil {
+			return nil, fmt.Errorf("metric[%v]: %w", i, err)
+		}
+		result = append(result, *metric)
+	}
+	return result, nil
 }
 
 func convertMetricType(metricType string) (entities.MetricType, error) {
