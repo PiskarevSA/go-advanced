@@ -33,6 +33,19 @@ func NewConfig() *Config {
 	}
 }
 
+func (c Config) LogValue() slog.Value {
+	// hide key
+	if len(c.Key) > 0 {
+		c.Key = "[redacted]"
+	}
+	return slog.GroupValue(
+		slog.Int("PollIntervalSec", c.PollIntervalSec),
+		slog.Int("ReportIntervalSec", c.ReportIntervalSec),
+		slog.String("ServerAddress", c.ServerAddress),
+		slog.String("Key", c.Key),
+	)
+}
+
 func (c *Config) ParseFlags() error {
 	flag.IntVar(&c.PollIntervalSec, "p", c.PollIntervalSec,
 		"interval between polling metrics, seconds; env: POLL_INTERVAL")
@@ -41,7 +54,7 @@ func (c *Config) ParseFlags() error {
 	flag.StringVar(&c.ServerAddress, "a", c.ServerAddress,
 		"server address; env: ADDRESS")
 	flag.StringVar(&c.Key, "k", c.Key,
-		"the key for signing the request body; env: KEY")
+		"the key for signing the request body (the signature is in the HashSHA256 header); env: KEY")
 	flag.CommandLine.Init("", flag.ContinueOnError)
 	err := flag.CommandLine.Parse(os.Args[1:])
 	if err != nil {
