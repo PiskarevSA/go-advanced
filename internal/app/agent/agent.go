@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -84,7 +87,7 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) {
 
 	// report metrics to server periodically
 	reportInterval := time.Duration(config.ReportIntervalSec) * time.Second
-	a.startReporter(ctx, &wg, reportInterval, config.ServerAddress)
+	a.startReporter(ctx, &wg, reportInterval, config.ServerAddress, config.Key)
 
 	// Wait for all goroutines to finish
 	wg.Wait()
@@ -115,8 +118,8 @@ func (a *Agent) startPoller(ctx context.Context, wg *sync.WaitGroup, pollInterva
 	}()
 }
 
-func (a *Agent) startReporter(
-	ctx context.Context, wg *sync.WaitGroup, reportInterval time.Duration, serverAddress string,
+func (a *Agent) startReporter(ctx context.Context, wg *sync.WaitGroup,
+	reportInterval time.Duration, serverAddress string, key string,
 ) {
 	wg.Add(1)
 	go func() {
@@ -130,7 +133,7 @@ func (a *Agent) startReporter(
 		for {
 			pollCount, gauge, counter := a.metrics.Get()
 			// report
-			if err := a.Report(serverAddress, gauge, counter); err != nil {
+			if err := a.Report(serverAddress, gauge, counter, key); err != nil {
 				slog.Error("[reporter] report failed", "pollCount", pollCount, "error", err)
 			} else {
 				slog.Info("[reporter] report succeeded", "pollCount", pollCount)
@@ -150,7 +153,8 @@ func (a *Agent) startReporter(
 	}()
 }
 
-func (a *Agent) Report(serverAddress string, gauge map[string]gauge, counter map[string]counter,
+func (a *Agent) Report(serverAddress string, gauge map[string]gauge,
+	counter map[string]counter, key string,
 ) error {
 	url := "http://" + serverAddress + "/updates/"
 
@@ -180,15 +184,15 @@ func (a *Agent) Report(serverAddress string, gauge map[string]gauge, counter map
 		return err
 	}
 
-	if err := a.ReportToURL(url, body); err != nil {
+	if err := a.ReportToURL(url, body, key); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (a *Agent) ReportToURL(url string, body []byte) error {
-	bodyReader := bytes.NewBuffer(nil)
-	gzipWriter := gzip.NewWriter(bodyReader)
+func (a *Agent) ReportToURL(url string, body []byte, key string) error {
+	compressedBodyBuffer := bytes.NewBuffer(nil)
+	gzipWriter := gzip.NewWriter(compressedBodyBuffer)
 	// write compressed body to buffer
 	if _, err := gzipWriter.Write(body); err != nil {
 		return fmt.Errorf("gzipWriter.Write(): %w", err)
@@ -198,13 +202,25 @@ func (a *Agent) ReportToURL(url string, body []byte) error {
 		return fmt.Errorf("gzipWriter.Close(): %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, url, bodyReader)
+	var hexSum string
+	if len(key) > 0 {
+		h := hmac.New(sha256.New, []byte(key))
+		compressedBody := compressedBodyBuffer.Bytes()
+		h.Write(compressedBody)
+		sign := h.Sum(nil)
+		hexSum = hex.EncodeToString(sign[:])
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, compressedBodyBuffer)
 	if err != nil {
 		return fmt.Errorf("http.NewRequest(): %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-	res, err := a.httpClient.Do(req) // closes compressedBodyReader
+	if len(hexSum) > 0 {
+		req.Header.Set("HashSHA256", hexSum)
+	}
+	res, err := a.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("httpClient.Do(): %w", err)
 	}

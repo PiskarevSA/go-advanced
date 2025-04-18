@@ -127,7 +127,10 @@ func (s *Server) createMetricsUsecase(storage usecaseStorage,
 
 func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
 	r := handlers.NewMetricsRouter(usecase).
-		WithMiddlewares(middleware.Summary, middleware.Encoding).
+		WithMiddlewares(
+			middleware.Summary,
+			middleware.Integrity(s.config.Key),
+			middleware.Encoding).
 		WithAllHandlers()
 	server := http.Server{
 		Addr: s.config.ServerAddress,
