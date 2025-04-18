@@ -14,12 +14,14 @@ const (
 	defaultPollIntervalSec   = 2
 	defaultReportIntervalSec = 10
 	defaultServerAddress     = "localhost:8080"
+	defaultKey               = ""
 )
 
 type Config struct {
 	PollIntervalSec   int    `env:"POLL_INTERVAL"`
 	ReportIntervalSec int    `env:"REPORT_INTERVAL"`
 	ServerAddress     string `env:"ADDRESS"`
+	Key               string `env:"KEY"`
 }
 
 func NewConfig() *Config {
@@ -27,6 +29,7 @@ func NewConfig() *Config {
 		PollIntervalSec:   defaultPollIntervalSec,
 		ReportIntervalSec: defaultReportIntervalSec,
 		ServerAddress:     defaultServerAddress,
+		Key:               defaultKey,
 	}
 }
 
@@ -37,6 +40,8 @@ func (c *Config) ParseFlags() error {
 		"interval between sending metrics to server, seconds; env: REPORT_INTERVAL")
 	flag.StringVar(&c.ServerAddress, "a", c.ServerAddress,
 		"server address; env: ADDRESS")
+	flag.StringVar(&c.Key, "k", c.Key,
+		"the key for signing the request body; env: KEY")
 	flag.CommandLine.Init("", flag.ContinueOnError)
 	err := flag.CommandLine.Parse(os.Args[1:])
 	if err != nil {
@@ -67,7 +72,7 @@ func ReadConfig() (*Config, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 	slog.Info("[main] after flags", "config", *c)
-	// enviromnent takes higher priority according to task description
+	// environment takes higher priority according to task description
 	err = c.ReadEnv()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)

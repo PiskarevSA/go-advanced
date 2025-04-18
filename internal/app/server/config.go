@@ -77,7 +77,7 @@ func ReadConfig() (*Config, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 	slog.Info("[main] after flags", "config", *c)
-	// enviromnent takes higher priority according to task description
+	// environment takes higher priority according to task description
 	err = c.ReadEnv()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
