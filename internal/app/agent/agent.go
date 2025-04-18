@@ -191,8 +191,8 @@ func (a *Agent) Report(serverAddress string, gauge map[string]gauge,
 }
 
 func (a *Agent) ReportToURL(url string, body []byte, key string) error {
-	bodyReader := bytes.NewBuffer(nil)
-	gzipWriter := gzip.NewWriter(bodyReader)
+	compressedBodyBuffer := bytes.NewBuffer(nil)
+	gzipWriter := gzip.NewWriter(compressedBodyBuffer)
 	// write compressed body to buffer
 	if _, err := gzipWriter.Write(body); err != nil {
 		return fmt.Errorf("gzipWriter.Write(): %w", err)
@@ -202,22 +202,25 @@ func (a *Agent) ReportToURL(url string, body []byte, key string) error {
 		return fmt.Errorf("gzipWriter.Close(): %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, url, bodyReader)
+	var hexSum string
+	if len(key) > 0 {
+		h := hmac.New(sha256.New, []byte(key))
+		compressedBody := compressedBodyBuffer.Bytes()
+		h.Write(compressedBody)
+		sign := h.Sum(nil)
+		hexSum = hex.EncodeToString(sign[:])
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, compressedBodyBuffer)
 	if err != nil {
 		return fmt.Errorf("http.NewRequest(): %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-	if len(key) > 0 {
-		h := hmac.New(sha256.New, []byte(key))
-		h.Write(body)
-		sign := h.Sum(nil)
-
-		hexSum := hex.EncodeToString(sign[:])
-		fmt.Println(hexSum)
+	if len(hexSum) > 0 {
 		req.Header.Set("HashSHA256", hexSum)
 	}
-	res, err := a.httpClient.Do(req) // closes compressedBodyReader
+	res, err := a.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("httpClient.Do(): %w", err)
 	}
