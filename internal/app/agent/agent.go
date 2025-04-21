@@ -94,7 +94,7 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) {
 	a.startReporter(ctx, &wg, reportInterval, "runtime reporter",
 		a.runtimeMetrics, config.ServerAddress, config.Key)
 	a.startReporter(ctx, &wg, reportInterval, "gopsutil reporter",
-		a.runtimeMetrics, config.ServerAddress, config.Key)
+		a.gopsutilMetrics, config.ServerAddress, config.Key)
 
 	// Wait for all goroutines to finish
 	wg.Wait()
