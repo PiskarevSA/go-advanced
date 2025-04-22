@@ -3,6 +3,7 @@ package metrics
 import (
 	"maps"
 	"sync"
+	"sync/atomic"
 )
 
 type (
@@ -13,10 +14,11 @@ type (
 type PollFunc func(gauge map[string]Gauge, counter map[string]Counter)
 
 type Metrics struct {
-	mutex    sync.RWMutex
-	pollFunc PollFunc
-	gauge    map[string]Gauge
-	counter  map[string]Counter
+	mutex     sync.RWMutex
+	pollFunc  PollFunc
+	gauge     map[string]Gauge
+	counter   map[string]Counter
+	readyRead atomic.Bool
 }
 
 func New(pollFunc PollFunc) *Metrics {
@@ -34,10 +36,12 @@ func (m *Metrics) Poll() Counter {
 
 	m.pollFunc(m.gauge, m.counter)
 
+	result := Counter(-1)
 	if pollCount, ok := m.counter["PollCount"]; ok {
-		return pollCount
+		result = pollCount
 	}
-	return -1
+	m.readyRead.Store(true)
+	return result
 }
 
 func (m *Metrics) Get() (Counter, map[string]Gauge, map[string]Counter) {
@@ -54,4 +58,8 @@ func (m *Metrics) Get() (Counter, map[string]Gauge, map[string]Counter) {
 		return pollCount, gauge, counter
 	}
 	return -1, gauge, counter
+}
+
+func (m *Metrics) ReadyRead() bool {
+	return m.readyRead.Load()
 }

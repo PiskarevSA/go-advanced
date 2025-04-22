@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -29,7 +28,6 @@ type Agent struct {
 	httpClient      *http.Client
 	runtimeMetrics  *metrics.Metrics
 	gopsutilMetrics *metrics.Metrics
-	readyRead       atomic.Bool
 }
 
 func NewAgent() *Agent {
@@ -115,7 +113,6 @@ func (a *Agent) startPoller(ctx context.Context, wg *sync.WaitGroup,
 			} else {
 				slog.Info("[" + name + "] polled")
 			}
-			a.readyRead.Store(true)
 			// sleep pollInterval or interrupt
 			for t := time.Duration(0); t < pollInterval; t += updateInterval {
 				select {
@@ -140,7 +137,7 @@ func (a *Agent) startReporter(ctx context.Context, wg *sync.WaitGroup,
 		defer wg.Done()
 		slog.Info("[" + name + "] start")
 		// wait for first poll
-		for !a.readyRead.Load() {
+		for !metrics.ReadyRead() {
 			slog.Info("[" + name + "] waiting for first poll")
 			time.Sleep(time.Microsecond)
 		}
