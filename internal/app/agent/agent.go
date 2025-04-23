@@ -85,8 +85,33 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) {
 	runtimePollerMetrics := pollerLauncher.StartPollRuntime(ctx)
 	gopsutilPollerMetrics := pollerLauncher.StartPollGopsutil(ctx)
 
-	// report metrics to server periodically
+	// schedule metrics for reporting periodically
 	reportInterval := time.Duration(config.ReportIntervalSec) * time.Second
+	schedulerLauncher := workers.NewSchedulerLauncher(
+		reportInterval, &wg)
+	metricsChan := schedulerLauncher.StartScheduler(ctx, []*metrics.Poller{
+		runtimePollerMetrics,
+		gopsutilPollerMetrics,
+	})
+
+	// flush metricsChan temporary
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-ctx.Done():
+				slog.Info("[flusher] stopping", "reason", ctx.Err())
+				return
+			case metric, ok := <-metricsChan:
+				if ok {
+					fmt.Println("[flusher]", metric)
+				}
+			}
+		}
+	}()
+
+	// report metrics to server periodically
 	a.startReporter(ctx, &wg, reportInterval, "runtime reporter",
 		runtimePollerMetrics, config.ServerAddress, config.Key)
 	a.startReporter(ctx, &wg, reportInterval, "gopsutil reporter",

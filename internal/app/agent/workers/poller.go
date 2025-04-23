@@ -21,42 +21,45 @@ func NewPollerLauncher(interval time.Duration, wg *sync.WaitGroup) *PollerLaunch
 	}
 }
 
-func (p *PollerLauncher) startPoll(
+func (l *PollerLauncher) startPoll(
 	ctx context.Context, poller *metrics.Poller, name string,
 ) {
-	p.wg.Add(1)
+	l.wg.Add(1)
 
 	go func() {
 		withPrefix := func(msg string) string {
 			return "[" + name + "] " + msg
 		}
 
-		defer p.wg.Done()
+		defer l.wg.Done()
 		slog.Info(withPrefix("start"))
-
-		// make first poll instantly and use ticker after that
-		firstPoll := make(chan struct{})
-		close(firstPoll)
-		ticker := time.NewTicker(p.interval)
 
 		poll := func() {
 			pollCount := poller.Poll()
 			slog.Info(withPrefix("polled"), "pollCount", pollCount)
 		}
 
+		ticker := time.NewTicker(l.interval)
 		stop := func() {
 			slog.Info(withPrefix("stopping"), "reason", ctx.Err())
 			ticker.Stop()
 		}
 
+		// make first poll instantly
+		select {
+		case <-ctx.Done():
+			stop()
+			return
+		default:
+			poll()
+		}
+
+		// use ticker after that
 		for {
 			select {
 			case <-ctx.Done():
 				stop()
 				return
-			case <-firstPoll:
-				poll()
-				firstPoll = nil
 			case <-ticker.C:
 				poll()
 			}
@@ -64,14 +67,14 @@ func (p *PollerLauncher) startPoll(
 	}()
 }
 
-func (p *PollerLauncher) StartPollRuntime(ctx context.Context) *metrics.Poller {
+func (l *PollerLauncher) StartPollRuntime(ctx context.Context) *metrics.Poller {
 	poller := metrics.NewPoller(metrics.PollRuntimeMetrics)
-	p.startPoll(ctx, poller, "runtime poller")
+	l.startPoll(ctx, poller, "runtime poller")
 	return poller
 }
 
-func (p *PollerLauncher) StartPollGopsutil(ctx context.Context) *metrics.Poller {
+func (l *PollerLauncher) StartPollGopsutil(ctx context.Context) *metrics.Poller {
 	poller := metrics.NewPoller(metrics.PollGopsutilMetrics)
-	p.startPoll(ctx, poller, "gopsutil poller")
+	l.startPoll(ctx, poller, "gopsutil poller")
 	return poller
 }

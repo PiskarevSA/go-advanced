@@ -24,31 +24,31 @@ func NewPoller(pollFunc PollFunc) *Poller {
 }
 
 // returns poll count
-func (m *Poller) Poll() int {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+func (p *Poller) Poll() int {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	m.pollFunc(m.metrics.Gauge, m.metrics.Counter)
+	p.pollFunc(p.metrics.Gauge, p.metrics.Counter)
 
-	m.readyRead.Store(true)
+	p.readyRead.Store(true)
 
-	m.pollCount++
-	return m.pollCount
+	p.pollCount++
+	return p.pollCount
 }
 
-func (m *Poller) Get() (int, map[string]Gauge, map[string]Counter) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+func (p *Poller) Get() (int, map[string]Gauge, map[string]Counter) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
 
 	gauge := make(map[string]Gauge)
-	maps.Copy(gauge, m.metrics.Gauge)
+	maps.Copy(gauge, p.metrics.Gauge)
 
 	counter := make(map[string]Counter)
-	maps.Copy(counter, m.metrics.Counter)
+	maps.Copy(counter, p.metrics.Counter)
 
-	return m.pollCount, gauge, counter
+	return p.pollCount, gauge, counter
 }
 
-func (m *Poller) ReadyRead() bool {
-	return m.readyRead.Load()
+func (p *Poller) ReadyRead() bool {
+	return p.readyRead.Load()
 }
