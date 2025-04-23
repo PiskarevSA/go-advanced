@@ -12,13 +12,13 @@ func Test_metrics_Poll(t *testing.T) {
 		counter["bar"] += 456
 	}
 
-	m := New(pollFunc)
+	m := NewPoller(pollFunc)
 	m.Poll()
-	assert.Equal(t, Gauge(1.234), m.gauge["foo"])
-	assert.Equal(t, Counter(456), m.counter["bar"])
+	assert.Equal(t, Gauge(1.234), m.metrics.Gauge["foo"])
+	assert.Equal(t, Counter(456), m.metrics.Counter["bar"])
 	m.Poll()
-	assert.Equal(t, Gauge(2.468), m.gauge["foo"])
-	assert.Equal(t, Counter(912), m.counter["bar"])
+	assert.Equal(t, Gauge(2.468), m.metrics.Gauge["foo"])
+	assert.Equal(t, Counter(912), m.metrics.Counter["bar"])
 }
 
 func Test_metrics_Read(t *testing.T) {
@@ -26,11 +26,11 @@ func Test_metrics_Read(t *testing.T) {
 		gauge["foo"] += 1.234
 		counter["bar"] += 456
 	}
-	m := New(pollFunc)
+	m := NewPoller(pollFunc)
 	m.Poll()
 	m.Poll()
 	pollCount, g, c := m.Get()
-	assert.Equal(t, -1, int(pollCount))
+	assert.Equal(t, 2, pollCount)
 	assert.GreaterOrEqual(t, Gauge(2.468), g["foo"])
 	assert.Equal(t, Counter(912), c["bar"])
 }

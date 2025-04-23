@@ -25,9 +25,9 @@ import (
 const updateInterval = 100 * time.Millisecond
 
 type Agent struct {
-	httpClient      *http.Client
-	runtimeMetrics  *metrics.Metrics
-	gopsutilMetrics *metrics.Metrics
+	httpClient     *http.Client
+	runtimePoller  *metrics.Poller
+	gopsutilPoller *metrics.Poller
 }
 
 func NewAgent() *Agent {
@@ -38,8 +38,8 @@ func NewAgent() *Agent {
 				transport: &http.Transport{},
 			},
 		},
-		runtimeMetrics:  metrics.New(metrics.PollRuntimeMetrics),
-		gopsutilMetrics: metrics.New(metrics.PollGopsutilMetrics),
+		runtimePoller:  metrics.NewPoller(metrics.PollRuntimeMetrics),
+		gopsutilPoller: metrics.NewPoller(metrics.PollGopsutilMetrics),
 	}
 }
 
@@ -84,22 +84,22 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) {
 
 	// poll metrics periodically
 	pollInterval := time.Duration(config.PollIntervalSec) * time.Second
-	a.startPoller(ctx, &wg, pollInterval, "runtime poller", a.runtimeMetrics)
-	a.startPoller(ctx, &wg, pollInterval, "gopsutil poller", a.gopsutilMetrics)
+	a.startPoller(ctx, &wg, pollInterval, "runtime poller", a.runtimePoller)
+	a.startPoller(ctx, &wg, pollInterval, "gopsutil poller", a.gopsutilPoller)
 
 	// report metrics to server periodically
 	reportInterval := time.Duration(config.ReportIntervalSec) * time.Second
 	a.startReporter(ctx, &wg, reportInterval, "runtime reporter",
-		a.runtimeMetrics, config.ServerAddress, config.Key)
+		a.runtimePoller, config.ServerAddress, config.Key)
 	a.startReporter(ctx, &wg, reportInterval, "gopsutil reporter",
-		a.gopsutilMetrics, config.ServerAddress, config.Key)
+		a.gopsutilPoller, config.ServerAddress, config.Key)
 
 	// Wait for all goroutines to finish
 	wg.Wait()
 }
 
 func (a *Agent) startPoller(ctx context.Context, wg *sync.WaitGroup,
-	pollInterval time.Duration, name string, metrics *metrics.Metrics,
+	pollInterval time.Duration, name string, poller *metrics.Poller,
 ) {
 	wg.Add(1)
 	go func() {
@@ -107,7 +107,7 @@ func (a *Agent) startPoller(ctx context.Context, wg *sync.WaitGroup,
 		slog.Info("[" + name + "] start ")
 
 		for {
-			pollCount := metrics.Poll()
+			pollCount := poller.Poll()
 			if pollCount != -1 {
 				slog.Info("["+name+"] polled", "pollCount", pollCount)
 			} else {
@@ -129,7 +129,7 @@ func (a *Agent) startPoller(ctx context.Context, wg *sync.WaitGroup,
 }
 
 func (a *Agent) startReporter(ctx context.Context, wg *sync.WaitGroup,
-	reportInterval time.Duration, name string, metrics *metrics.Metrics,
+	reportInterval time.Duration, name string, poller *metrics.Poller,
 	serverAddress string, key string,
 ) {
 	wg.Add(1)
@@ -137,12 +137,12 @@ func (a *Agent) startReporter(ctx context.Context, wg *sync.WaitGroup,
 		defer wg.Done()
 		slog.Info("[" + name + "] start")
 		// wait for first poll
-		for !metrics.ReadyRead() {
+		for !poller.ReadyRead() {
 			slog.Info("[" + name + "] waiting for first poll")
 			time.Sleep(time.Microsecond)
 		}
 		for {
-			pollCount, gauge, counter := metrics.Get()
+			pollCount, gauge, counter := poller.Get()
 			// report
 			if err := a.Report(serverAddress, gauge, counter, key); err != nil {
 				slog.Error("["+name+"] report failed", "pollCount", pollCount, "error", err)
