@@ -15,6 +15,7 @@ const (
 	defaultReportIntervalSec = 10
 	defaultServerAddress     = "localhost:8080"
 	defaultKey               = ""
+	defaultRateLimit         = 1
 )
 
 type Config struct {
@@ -22,6 +23,7 @@ type Config struct {
 	ReportIntervalSec int    `env:"REPORT_INTERVAL"`
 	ServerAddress     string `env:"ADDRESS"`
 	Key               string `env:"KEY"`
+	RateLimit         int    `env:"RATE_LIMIT"`
 }
 
 func NewConfig() *Config {
@@ -30,6 +32,7 @@ func NewConfig() *Config {
 		ReportIntervalSec: defaultReportIntervalSec,
 		ServerAddress:     defaultServerAddress,
 		Key:               defaultKey,
+		RateLimit:         defaultRateLimit,
 	}
 }
 
@@ -43,6 +46,7 @@ func (c Config) LogValue() slog.Value {
 		slog.Int("ReportIntervalSec", c.ReportIntervalSec),
 		slog.String("ServerAddress", c.ServerAddress),
 		slog.String("Key", c.Key),
+		slog.Int("RateLimit", c.RateLimit),
 	)
 }
 
@@ -55,6 +59,8 @@ func (c *Config) ParseFlags() error {
 		"server address; env: ADDRESS")
 	flag.StringVar(&c.Key, "k", c.Key,
 		"the key for signing the request body (the signature is in the HashSHA256 header); env: KEY")
+	flag.IntVar(&c.RateLimit, "l", c.RateLimit,
+		"max number of concurrent calls to server, flush to console if 0; env: RATE_LIMIT")
 	flag.CommandLine.Init("", flag.ContinueOnError)
 	err := flag.CommandLine.Parse(os.Args[1:])
 	if err != nil {

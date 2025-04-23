@@ -13,8 +13,6 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/app/agent/workers"
 )
 
-const updateInterval = 100 * time.Millisecond
-
 type Agent struct{}
 
 func NewAgent() *Agent {
@@ -76,9 +74,8 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) {
 	})
 
 	// report metrics to server periodically
-	rateLimit := 2 // TODO add config
 	reporterPool := workers.NewReporterPool(
-		&wg, rateLimit, metricsChan, config.ServerAddress, config.Key)
+		&wg, config.RateLimit, metricsChan, config.ServerAddress, config.Key)
 	reporterPool.StartReporters(ctx)
 
 	// Wait for all goroutines to finish
