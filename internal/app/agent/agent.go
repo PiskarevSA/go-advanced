@@ -1,17 +1,8 @@
 package agent
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -20,24 +11,14 @@ import (
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent/metrics"
 	"github.com/PiskarevSA/go-advanced/internal/app/agent/workers"
-	"github.com/PiskarevSA/go-advanced/internal/models"
 )
 
 const updateInterval = 100 * time.Millisecond
 
-type Agent struct {
-	httpClient *http.Client
-}
+type Agent struct{}
 
 func NewAgent() *Agent {
-	return &Agent{
-		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
-			Transport: &retryableTransport{
-				transport: &http.Transport{},
-			},
-		},
-	}
+	return &Agent{}
 }
 
 // run agent successfully or return false immediately
@@ -94,153 +75,12 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) {
 		gopsutilPollerMetrics,
 	})
 
-	// flush metricsChan temporary
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				slog.Info("[flusher] stopping", "reason", ctx.Err())
-				return
-			case metric, ok := <-metricsChan:
-				if ok {
-					fmt.Println("[flusher]", metric)
-				}
-			}
-		}
-	}()
-
 	// report metrics to server periodically
-	a.startReporter(ctx, &wg, reportInterval, "runtime reporter",
-		runtimePollerMetrics, config.ServerAddress, config.Key)
-	a.startReporter(ctx, &wg, reportInterval, "gopsutil reporter",
-		gopsutilPollerMetrics, config.ServerAddress, config.Key)
+	rateLimit := 2 // TODO add config
+	reporterPool := workers.NewReporterPool(
+		&wg, rateLimit, metricsChan, config.ServerAddress, config.Key)
+	reporterPool.StartReporters(ctx)
 
 	// Wait for all goroutines to finish
 	wg.Wait()
-}
-
-func (a *Agent) startReporter(ctx context.Context, wg *sync.WaitGroup,
-	reportInterval time.Duration, name string, pollerMetrics *metrics.Poller,
-	serverAddress string, key string,
-) {
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		slog.Info("[" + name + "] start")
-		// wait for first poll
-		for !pollerMetrics.ReadyRead() {
-			slog.Info("[" + name + "] waiting for first poll")
-			time.Sleep(time.Microsecond)
-		}
-		for {
-			pollCount, gauge, counter := pollerMetrics.Get()
-			// report
-			if err := a.Report(serverAddress, gauge, counter, key); err != nil {
-				slog.Error("["+name+"] report failed", "pollCount", pollCount, "error", err)
-			} else {
-				slog.Info("["+name+"] report succeeded", "pollCount", pollCount)
-			}
-			// sleep reportInterval or interrupt
-			for t := time.Duration(0); t < reportInterval; t += updateInterval {
-				select {
-				case <-ctx.Done():
-					// Handle context cancellation (graceful shutdown)
-					slog.Info("["+name+"] stopping", "reason", ctx.Err())
-					return
-				default:
-					time.Sleep(updateInterval)
-				}
-			}
-		}
-	}()
-}
-
-func (a *Agent) Report(serverAddress string, gauge map[string]metrics.Gauge,
-	counter map[string]metrics.Counter, key string,
-) error {
-	url := "http://" + serverAddress + "/updates/"
-
-	metrics := make([]models.Metric, 0, len(gauge)+len(counter))
-	for key, gauge := range gauge {
-		value := float64(gauge)
-		m := models.Metric{
-			ID:    key,
-			MType: "gauge",
-			Value: &value,
-		}
-		metrics = append(metrics, m)
-	}
-
-	for key, counter := range counter {
-		delta := int64(counter)
-		m := models.Metric{
-			ID:    key,
-			MType: "counter",
-			Delta: &delta,
-		}
-		metrics = append(metrics, m)
-	}
-
-	body, err := json.Marshal(metrics)
-	if err != nil {
-		return err
-	}
-
-	if err := a.ReportToURL(url, body, key); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *Agent) ReportToURL(url string, body []byte, key string) error {
-	compressedBodyBuffer := bytes.NewBuffer(nil)
-	gzipWriter := gzip.NewWriter(compressedBodyBuffer)
-	// write compressed body to buffer
-	if _, err := gzipWriter.Write(body); err != nil {
-		return fmt.Errorf("gzipWriter.Write(): %w", err)
-	}
-	// flush any unwritten data to buffer
-	if err := gzipWriter.Close(); err != nil {
-		return fmt.Errorf("gzipWriter.Close(): %w", err)
-	}
-
-	var hexSum string
-	if len(key) > 0 {
-		h := hmac.New(sha256.New, []byte(key))
-		compressedBody := compressedBodyBuffer.Bytes()
-		h.Write(compressedBody)
-		sign := h.Sum(nil)
-		hexSum = hex.EncodeToString(sign[:])
-	}
-
-	req, err := http.NewRequest(http.MethodPost, url, compressedBodyBuffer)
-	if err != nil {
-		return fmt.Errorf("http.NewRequest(): %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Encoding", "gzip")
-	if len(hexSum) > 0 {
-		req.Header.Set("HashSHA256", hexSum)
-	}
-	res, err := a.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("httpClient.Do(): %w", err)
-	}
-	defer res.Body.Close()
-
-	// The default HTTP client's Transport may not
-	// reuse HTTP/1.x "keep-alive" TCP connections if the Body is
-	// not read to completion and closed.
-	_, err = io.Copy(io.Discard, res.Body)
-	if err != nil {
-		return fmt.Errorf("io.Copy(): %w", err)
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("POST %v returns %v", url, res.Status)
-	}
-
-	return nil
 }

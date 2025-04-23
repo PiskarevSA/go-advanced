@@ -54,6 +54,7 @@ func (l *SchedulerLauncher) StartScheduler(
 		stop := func() {
 			slog.Info("[scheduler] stopping", "reason", ctx.Err())
 			ticker.Stop()
+			close(result)
 		}
 
 		// make first poll instantly
