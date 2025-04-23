@@ -12,16 +12,14 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/entities"
 )
 
-const updateInterval = 100 * time.Millisecond
-
 type FileStorage struct {
 	mutex sync.RWMutex
 
 	GaugeMap   map[entities.MetricName]entities.Gauge   `json:"gauge"`
 	CounterMap map[entities.MetricName]entities.Counter `json:"counter"`
 
-	StoreInterval   int    `json:"-"`
-	FileStoragePath string `json:"-"`
+	storeInterval   int
+	fileStoragePath string
 }
 
 func New(ctx context.Context, wg *sync.WaitGroup,
@@ -30,8 +28,8 @@ func New(ctx context.Context, wg *sync.WaitGroup,
 	result := &FileStorage{
 		GaugeMap:        make(map[entities.MetricName]entities.Gauge),
 		CounterMap:      make(map[entities.MetricName]entities.Counter),
-		StoreInterval:   storeInterval,
-		FileStoragePath: fileStoragePath,
+		storeInterval:   storeInterval,
+		fileStoragePath: fileStoragePath,
 	}
 
 	if restore {
@@ -42,23 +40,39 @@ func New(ctx context.Context, wg *sync.WaitGroup,
 
 	if storeInterval > 0 {
 		wg.Add(1)
-		storeInterval := time.Duration(storeInterval) * time.Second
 		go func() {
 			defer wg.Done()
+
 			slog.Info("[preserver] start")
-			for {
+
+			store := func() {
 				result.storeMetrics("preserver")
-				// sleep storeInterval or interrupt
-				for t := time.Duration(0); t < storeInterval; t += updateInterval {
-					select {
-					case <-ctx.Done():
-						// Handle context cancellation (graceful shutdown)
-						slog.Info("[preserver] stopping", "error", ctx.Err())
-						result.storeMetrics("preserver") // save changes
-						return
-					default:
-						time.Sleep(updateInterval)
-					}
+			}
+
+			ticker := time.NewTicker(time.Duration(storeInterval) * time.Second)
+			stop := func() {
+				slog.Info("[preserver] stopping", "error", ctx.Err())
+				ticker.Stop()
+			}
+
+			// make first store instantly
+			select {
+			case <-ctx.Done():
+				stop()
+				store() // store on exit
+				return
+			default:
+				store()
+			}
+
+			// use ticker after that
+			for {
+				select {
+				case <-ctx.Done():
+					stop()
+					return
+				case <-ticker.C:
+					store()
 				}
 			}
 		}()
@@ -211,7 +225,7 @@ func (s *FileStorage) loadMetrics() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	file, err := os.Open(s.FileStoragePath)
+	file, err := os.Open(s.fileStoragePath)
 	if err != nil {
 		slog.Error("[main] open metrics file", "error", err.Error())
 		return
@@ -222,14 +236,14 @@ func (s *FileStorage) loadMetrics() {
 		slog.Error("[main] load metrics file", "error", err.Error())
 		return
 	}
-	slog.Info("[main] metrics file loaded", "path", s.FileStoragePath)
+	slog.Info("[main] metrics file loaded", "path", s.fileStoragePath)
 }
 
 func (s *FileStorage) storeMetrics(caller string) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	file, err := os.Create(s.FileStoragePath)
+	file, err := os.Create(s.fileStoragePath)
 	if err != nil {
 		msg := fmt.Sprintf("[%v] create metrics file", caller)
 		slog.Error(msg, "error", err.Error())
@@ -244,11 +258,11 @@ func (s *FileStorage) storeMetrics(caller string) {
 	}
 
 	msg := fmt.Sprintf("[%v] metrics file stored", caller)
-	slog.Info(msg, "path", s.FileStoragePath)
+	slog.Info(msg, "path", s.fileStoragePath)
 }
 
 func (s *FileStorage) storeMetricsOnChangeIfRequired() {
-	if s.StoreInterval <= 0 {
+	if s.storeInterval <= 0 {
 		s.storeMetrics("on change")
 	}
 }
