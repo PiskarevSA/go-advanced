@@ -31,7 +31,11 @@ func (l *PollerLauncher) startPoll(
 			return "[" + name + "] " + msg
 		}
 
-		defer l.wg.Done()
+		defer func() {
+			slog.Info(withPrefix("stopping"), "reason", ctx.Err())
+			l.wg.Done()
+		}()
+
 		slog.Info(withPrefix("start"))
 
 		poll := func() {
@@ -39,26 +43,19 @@ func (l *PollerLauncher) startPoll(
 			slog.Info(withPrefix("polled"), "pollCount", pollCount)
 		}
 
-		ticker := time.NewTicker(l.interval)
-		stop := func() {
-			slog.Info(withPrefix("stopping"), "reason", ctx.Err())
-			ticker.Stop()
-		}
-
 		// make first poll instantly
 		select {
 		case <-ctx.Done():
-			stop()
 			return
 		default:
 			poll()
 		}
 
 		// use ticker after that
+		ticker := time.NewTicker(l.interval)
 		for {
 			select {
 			case <-ctx.Done():
-				stop()
 				return
 			case <-ticker.C:
 				poll()

@@ -79,6 +79,11 @@ func (c *SignVerifier) verifyRequest(w http.ResponseWriter, r *http.Request) boo
 
 	body, err := io.ReadAll(r.Body)
 	r.Body.Close()
+	defer func() {
+		// restore body for future read
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
+	}()
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return false
@@ -93,8 +98,6 @@ func (c *SignVerifier) verifyRequest(w http.ResponseWriter, r *http.Request) boo
 		return false
 	}
 
-	// restore body for future read
-	r.Body = io.NopCloser(bytes.NewBuffer(body))
 	return true
 }
 

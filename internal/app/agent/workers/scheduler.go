@@ -30,53 +30,72 @@ func (l *SchedulerLauncher) StartScheduler(
 	l.wg.Add(1)
 
 	go func() {
-		defer l.wg.Done()
+		defer func() {
+			slog.Info("[scheduler] stopping", "reason", ctx.Err())
+			close(result)
+			l.wg.Done()
+		}()
+
 		slog.Info("[scheduler] start")
 		// wait for first poll
-		for i, pollerMetrics := range pollersMetrics {
-			for !pollerMetrics.ReadyRead() {
-				slog.Info("[scheduler] waiting for first poll", "metric index", i)
-				time.Sleep(time.Microsecond)
-			}
-		}
-
-		schedule := func(pollerIndex int, poller *metrics.Poller) {
-			pollCount, gauge, counter := poller.Get()
-			slog.Info("[scheduler] schedule", "pollerIndex", pollerIndex, "pollCount", pollCount)
-			result <- metrics.Metrics{
-				Gauge:   gauge,
-				Counter: counter,
-			}
-			slog.Info("[scheduler] complete", "pollerIndex", pollerIndex, "pollCount", pollCount)
-		}
-
-		ticker := time.NewTicker(l.interval)
-		stop := func() {
-			slog.Info("[scheduler] stopping", "reason", ctx.Err())
-			ticker.Stop()
-			close(result)
-		}
-
-		// make first poll instantly
 		for pollerIndex, pollerMetrics := range pollersMetrics {
 			select {
 			case <-ctx.Done():
-				stop()
+				slog.Info("[scheduler] wait for first poll canceled",
+					"pollerIndex", pollerIndex,
+					"error", ctx.Err())
 				return
-			default:
-				schedule(pollerIndex, pollerMetrics)
+			case <-pollerMetrics.ReadyRead():
 			}
 		}
 
+		schedulePollerWithContext := func(ctx context.Context, pollerIndex int, poller *metrics.Poller) error {
+			pollCount, gauge, counter := poller.Get()
+			slog.Info("[scheduler] schedule",
+				"pollerIndex", pollerIndex,
+				"pollCount", pollCount)
+			select {
+			case <-ctx.Done():
+				slog.Info("[scheduler] canceled",
+					"pollerIndex", pollerIndex,
+					"pollCount", pollCount,
+					"error", ctx.Err())
+				return ctx.Err()
+			case result <- metrics.Metrics{
+				Gauge:   gauge,
+				Counter: counter,
+			}:
+				slog.Info("[scheduler] complete",
+					"pollerIndex", pollerIndex,
+					"pollCount", pollCount)
+			}
+			return nil
+		}
+
+		scheduleAllPollersWithContext := func(ctx context.Context) error {
+			for pollerIndex, pollerMetrics := range pollersMetrics {
+				err := schedulePollerWithContext(ctx, pollerIndex, pollerMetrics)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+
+		// make first poll instantly
+		if scheduleAllPollersWithContext(ctx) != nil {
+			return
+		}
+
 		// use ticker after that
-		for pollerIndex, pollerMetrics := range pollersMetrics {
-			for {
-				select {
-				case <-ctx.Done():
-					stop()
+		ticker := time.NewTicker(l.interval)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if scheduleAllPollersWithContext(ctx) != nil {
 					return
-				case <-ticker.C:
-					schedule(pollerIndex, pollerMetrics)
 				}
 			}
 		}

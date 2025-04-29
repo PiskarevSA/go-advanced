@@ -20,56 +20,60 @@ type FileStorage struct {
 
 	storeInterval   int
 	fileStoragePath string
+	restore         bool
 }
 
-func New(ctx context.Context, wg *sync.WaitGroup,
-	storeInterval int, fileStoragePath string, restore bool,
+func New(storeInterval int, fileStoragePath string, restore bool,
 ) *FileStorage {
 	result := &FileStorage{
 		GaugeMap:        make(map[entities.MetricName]entities.Gauge),
 		CounterMap:      make(map[entities.MetricName]entities.Counter),
 		storeInterval:   storeInterval,
 		fileStoragePath: fileStoragePath,
+		restore:         restore,
 	}
 
-	if restore {
-		result.loadMetrics()
+	return result
+}
+
+func (s *FileStorage) Init() {
+	if s.restore {
+		s.loadMetrics()
 	} else {
-		slog.Info("[main] metrics file loading skipped", "path", fileStoragePath)
+		slog.Info("[main] metrics file loading skipped",
+			"path", s.fileStoragePath)
 	}
+}
 
-	if storeInterval > 0 {
+func (s *FileStorage) Start(ctx context.Context, wg *sync.WaitGroup) {
+	if s.storeInterval > 0 {
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
+			store := func() {
+				s.storeMetrics("preserver")
+			}
+
+			defer func() {
+				slog.Info("[preserver] stopping", "error", ctx.Err())
+				store() // store on exit
+				wg.Done()
+			}()
 
 			slog.Info("[preserver] start")
-
-			store := func() {
-				result.storeMetrics("preserver")
-			}
-
-			ticker := time.NewTicker(time.Duration(storeInterval) * time.Second)
-			stop := func() {
-				slog.Info("[preserver] stopping", "error", ctx.Err())
-				ticker.Stop()
-			}
 
 			// make first store instantly
 			select {
 			case <-ctx.Done():
-				stop()
-				store() // store on exit
 				return
 			default:
 				store()
 			}
 
 			// use ticker after that
+			ticker := time.NewTicker(time.Duration(s.storeInterval) * time.Second)
 			for {
 				select {
 				case <-ctx.Done():
-					stop()
 					return
 				case <-ticker.C:
 					store()
@@ -77,8 +81,6 @@ func New(ctx context.Context, wg *sync.WaitGroup,
 			}
 		}()
 	}
-
-	return result
 }
 
 func (s *FileStorage) GetMetric(ctx context.Context, metric entities.Metric,

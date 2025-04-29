@@ -3,23 +3,28 @@ package metrics
 import (
 	"maps"
 	"sync"
-	"sync/atomic"
 )
 
 type PollFunc func(gauge map[string]Gauge, counter map[string]Counter)
 
 type Poller struct {
-	mutex     sync.RWMutex
-	pollFunc  PollFunc
-	metrics   Metrics
-	readyRead atomic.Bool
-	pollCount int
+	mutex           sync.RWMutex
+	pollFunc        PollFunc
+	metrics         Metrics
+	readyRead       chan struct{}
+	readyReadCloser func()
+	pollCount       int
 }
 
 func NewPoller(pollFunc PollFunc) *Poller {
+	readyRead := make(chan struct{})
 	return &Poller{
-		pollFunc: pollFunc,
-		metrics:  *NewMetrics(),
+		pollFunc:  pollFunc,
+		metrics:   *NewMetrics(),
+		readyRead: readyRead,
+		readyReadCloser: sync.OnceFunc(func() {
+			close(readyRead)
+		}),
 	}
 }
 
@@ -30,7 +35,7 @@ func (p *Poller) Poll() int {
 
 	p.pollFunc(p.metrics.Gauge, p.metrics.Counter)
 
-	p.readyRead.Store(true)
+	p.readyReadCloser()
 
 	p.pollCount++
 	return p.pollCount
@@ -49,6 +54,6 @@ func (p *Poller) Get() (int, map[string]Gauge, map[string]Counter) {
 	return p.pollCount, gauge, counter
 }
 
-func (p *Poller) ReadyRead() bool {
-	return p.readyRead.Load()
+func (p *Poller) ReadyRead() chan struct{} {
+	return p.readyRead
 }
