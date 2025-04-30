@@ -109,8 +109,10 @@ func (s *Server) createStorage(ctx context.Context, wg *sync.WaitGroup,
 		}
 		slog.Info("[main] pgstorage created")
 	} else if len(s.config.FileStoragePath) > 0 {
-		filestorage := filestorage.New(ctx, wg,
+		filestorage := filestorage.New(
 			s.config.StoreInterval, s.config.FileStoragePath, s.config.Restore)
+		filestorage.Init()
+		filestorage.Start(ctx, wg)
 		result = filestorage
 		slog.Info("[main] filestorage created")
 	} else {
@@ -127,7 +129,10 @@ func (s *Server) createMetricsUsecase(storage usecaseStorage,
 
 func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
 	r := handlers.NewMetricsRouter(usecase).
-		WithMiddlewares(middleware.Summary, middleware.Encoding).
+		WithMiddlewares(
+			middleware.Summary,
+			middleware.Integrity(s.config.Key),
+			middleware.Encoding).
 		WithAllHandlers()
 	server := http.Server{
 		Addr: s.config.ServerAddress,

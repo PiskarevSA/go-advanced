@@ -9,11 +9,17 @@ import (
 
 const retryCount = 3
 
-type retryableTransport struct {
+type RetryableTransport struct {
 	transport http.RoundTripper
 }
 
-func (t *retryableTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func NewRetryableTransport() *RetryableTransport {
+	return &RetryableTransport{
+		transport: &http.Transport{},
+	}
+}
+
+func (t *RetryableTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var bodyBytes []byte
 	if req.Body != nil {
 		var err error

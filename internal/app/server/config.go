@@ -6,8 +6,19 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/caarlos0/env/v6"
+)
+
+const (
+	defaultServerAddress   = "localhost:8080"
+	defaultStoreInterval   = 300
+	defaultFileStoragePath = "metrics.json"
+	defaultRestore         = false
+	defaultDatabaseDSN     = ""
+	defaultKey             = ""
 )
 
 type Config struct {
@@ -16,15 +27,8 @@ type Config struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
+	Key             string `env:"KEY"`
 }
-
-const (
-	defaultServerAddress   = "localhost:8080"
-	defaultStoreInterval   = 300
-	defaultFileStoragePath = "metrics.json"
-	defaultRestore         = false
-	defaultDatabaseDSN     = ""
-)
 
 func NewConfig() *Config {
 	return &Config{
@@ -33,7 +37,30 @@ func NewConfig() *Config {
 		FileStoragePath: defaultFileStoragePath,
 		Restore:         defaultRestore,
 		DatabaseDSN:     defaultDatabaseDSN,
+		Key:             defaultKey,
 	}
+}
+
+func (c Config) LogValue() slog.Value {
+	// hide database password
+	re := regexp.MustCompile(`(?i)password=([^\s]+)`)
+	match := re.FindStringSubmatch(c.DatabaseDSN)
+	if len(match) > 1 {
+		c.DatabaseDSN = strings.Replace(c.DatabaseDSN, match[1], "[redacted]", -1)
+	}
+	// hide key
+	if len(c.Key) > 0 {
+		c.Key = "[redacted]"
+	}
+
+	return slog.GroupValue(
+		slog.String("ServerAddress", c.ServerAddress),
+		slog.Int("StoreInterval", c.StoreInterval),
+		slog.String("FileStoragePath", c.FileStoragePath),
+		slog.Bool("Restore", c.Restore),
+		slog.String("DatabaseDSN", c.DatabaseDSN),
+		slog.String("Key", c.Key),
+	)
 }
 
 func (c *Config) ParseFlags() error {
@@ -47,6 +74,8 @@ func (c *Config) ParseFlags() error {
 		"restore metrics from file on service startup")
 	flag.StringVar(&c.DatabaseDSN, "d", c.DatabaseDSN,
 		"database data source name (DSN)")
+	flag.StringVar(&c.Key, "k", c.Key,
+		"the key for validating the request body and signing the response body (both signatures are in the HashSHA256 header); env: KEY")
 	flag.CommandLine.Init("", flag.ContinueOnError)
 	err := flag.CommandLine.Parse(os.Args[1:])
 	if err != nil {
@@ -77,7 +106,7 @@ func ReadConfig() (*Config, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 	slog.Info("[main] after flags", "config", *c)
-	// enviromnent takes higher priority according to task description
+	// environment takes higher priority according to task description
 	err = c.ReadEnv()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
