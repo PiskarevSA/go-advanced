@@ -1,1 +1,1 @@
-act --job statictest
+time act --job statictest
