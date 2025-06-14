@@ -1,0 +1,1 @@
+act --job statictest

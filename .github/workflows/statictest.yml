@@ -14,6 +14,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
+    - if: ${{ env.ACT }}
+      name: Hack container for local development
+      run: |
+          curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+          apt-get install -y nodejs
+
     - name: Download statictest binary
       uses: robinraju/release-downloader@v1.8
       with:
