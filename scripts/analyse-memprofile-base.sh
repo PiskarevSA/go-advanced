@@ -1,0 +1,1 @@
+go tool pprof -http=":9090" usecases-base.test profiles/base.pprof
