@@ -1,0 +1,1 @@
+go tool pprof -http=":9091" usecases-result.test profiles/result.pprof

@@ -1,0 +1,17 @@
+File: usecases.test
+Build ID: 7d25a5c5586e321ffd3c3e2fd66bdfa0d90d0e17
+Type: alloc_space
+Time: 2025-06-14 22:14:18 MSK
+Showing nodes accounting for -470.69MB, 43.91% of 1072.03MB total
+Dropped 10 nodes (cum <= 5.36MB)
+      flat  flat%   sum%        cum   cum%
+ -488.16MB 45.54% 45.54%  -482.66MB 45.02%  github.com/PiskarevSA/go-advanced/internal/usecases.NewIteratableDump
+    7.02MB  0.65% 44.88%     7.02MB  0.65%  maps.Copy[go.shape.map[github.com/PiskarevSA/go-advanced/internal/entities.MetricName]github.com/PiskarevSA/go-advanced/internal/entities.Counter,go.shape.map[github.com/PiskarevSA/go-advanced/internal/entities.MetricName]github.com/PiskarevSA/go-advanced/internal/entities.Counter,go.shape.string,go.shape.int64] (inline)
+    5.50MB  0.51% 44.37%     5.50MB  0.51%  fmt.Sprint
+    3.51MB  0.33% 44.04%     3.51MB  0.33%  maps.Copy[go.shape.map[github.com/PiskarevSA/go-advanced/internal/entities.MetricName]github.com/PiskarevSA/go-advanced/internal/entities.Gauge,go.shape.map[github.com/PiskarevSA/go-advanced/internal/entities.MetricName]github.com/PiskarevSA/go-advanced/internal/entities.Gauge,go.shape.string,go.shape.float64] (inline)
+       1MB 0.093% 43.95%  -471.19MB 43.95%  github.com/PiskarevSA/go-advanced/internal/usecases.(*MetricsUsecase).DumpIterator
+    0.50MB 0.047% 43.90%  -470.69MB 43.91%  github.com/PiskarevSA/go-advanced/internal/usecases.BenchmarkMetricsUsecase
+   -0.07MB 0.0063% 43.91%    10.46MB  0.98%  github.com/PiskarevSA/go-advanced/internal/usecases.(*mockStorage).GetMetricsByTypes
+         0     0% 43.91%    10.53MB  0.98%  github.com/PiskarevSA/go-advanced/internal/usecases.BenchmarkMetricsUsecase.func1
+         0     0% 43.91%  -470.69MB 43.91%  testing.(*B).run1.func1
+         0     0% 43.91%  -470.69MB 43.91%  testing.(*B).runN
