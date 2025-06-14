@@ -1,1 +1,1 @@
-act --job metricstest
+time act --job metricstest
