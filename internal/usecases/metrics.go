@@ -32,26 +32,28 @@ type IteratableDump struct {
 func NewIteratableDump(gauge map[entities.MetricName]entities.Gauge,
 	counter map[entities.MetricName]entities.Counter,
 ) *IteratableDump {
-	result := IteratableDump{}
-
-	var keys []string
+	gaugeKeys := make([]string, 0, len(gauge))
 	for k := range gauge {
-		keys = append(keys, string(k))
+		gaugeKeys = append(gaugeKeys, string(k))
 	}
-	sort.Strings(keys)
+	sort.Strings(gaugeKeys)
 
-	for _, k := range keys {
+	counterKeys := make([]string, 0, len(counter))
+	for k := range counter {
+		counterKeys = append(counterKeys, string(k))
+	}
+	sort.Strings(counterKeys)
+
+	result := IteratableDump{
+		rows: make([]DumpRow, 0, len(gaugeKeys)+len(counterKeys)),
+	}
+
+	for _, k := range gaugeKeys {
 		result.rows = append(result.rows,
 			DumpRow{"gauge", k, fmt.Sprint(gauge[entities.MetricName(k)])})
 	}
 
-	keys = make([]string, 0)
-	for k := range counter {
-		keys = append(keys, string(k))
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
+	for _, k := range counterKeys {
 		result.rows = append(result.rows,
 			DumpRow{"counter", k, fmt.Sprint(counter[entities.MetricName(k)])})
 	}
