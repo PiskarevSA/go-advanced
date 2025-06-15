@@ -14,7 +14,8 @@ var (
 )
 
 // stateful errors
-// .. InvalidMetricTypeError
+
+// InvalidMetricTypeError returns with Bad Request or Not Found HTTP code
 type InvalidMetricTypeError struct {
 	MetricType string
 }
@@ -27,7 +28,7 @@ func (e *InvalidMetricTypeError) Error() string {
 	return fmt.Sprintf("invalid metric type: %s", e.MetricType)
 }
 
-// .. MetricNameNotFoundError
+// MetricNameNotFoundError returns with Not Found HTTP code
 type MetricNameNotFoundError struct {
 	MetricName MetricName
 }
@@ -40,7 +41,7 @@ func (e *MetricNameNotFoundError) Error() string {
 	return fmt.Sprintf("metric name not found: %s", e.MetricName)
 }
 
-// .. MetricValueIsNotValidError
+// MetricValueIsNotValidError returns with Bad Request HTTP code
 type MetricValueIsNotValidError struct {
 	error
 }
@@ -57,7 +58,7 @@ func (e *MetricValueIsNotValidError) Unwrap() error {
 	return e.error
 }
 
-// .. JSONRequestDecodeError
+// JSONRequestDecodeError returns with Bad Request HTTP code
 type JSONRequestDecodeError struct {
 	error
 }
@@ -74,7 +75,7 @@ func (e *JSONRequestDecodeError) Unwrap() error {
 	return e.error
 }
 
-// .. InternalError
+// InternalError returns with Internal Server Error HTTP code
 type InternalError struct {
 	message string
 	err     error
