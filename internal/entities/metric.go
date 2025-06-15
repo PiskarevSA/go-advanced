@@ -12,6 +12,7 @@ type (
 	Counter    int64
 )
 
+// MetricType enumerator
 const (
 	MetricTypeUndefined MetricType = iota
 	MetricTypeGauge
@@ -33,6 +34,7 @@ func (t MetricType) String() string {
 	return fmt.Sprintf("%v (i.e. %v)", strconv.Itoa(int(t)), asStr)
 }
 
+// Metric entity used by business logic (usecases)
 type Metric struct {
 	Type MetricType
 	Name MetricName

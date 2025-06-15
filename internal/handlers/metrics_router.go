@@ -76,8 +76,10 @@ func (r *MetricsRouter) WithAllHandlers() *MetricsRouter {
 }
 
 // mainPageHandler handles endpoint: GET /
-// request: none
-// response	type: "text/html", body: html document containing dumped metrics
+//
+// Request: none
+//
+// Response	type: "text/html", body: html document containing dumped metrics
 func (r *MetricsRouter) mainPageHandler(res http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -106,8 +108,10 @@ func (r *MetricsRouter) mainPageHandler(res http.ResponseWriter, req *http.Reque
 }
 
 // getAsJSONHandler handles endpoint: POST /value/
-// request type: "application/json", body: models.Metric
-// response	type: "application/json", body: models.Metric
+//
+// Request type: "application/json", body: models.Metric
+//
+// Response type: "application/json", body: models.Metric
 func (r *MetricsRouter) getAsJSONHandler(res http.ResponseWriter, req *http.Request) {
 	validMetric, err := adapters.ConvertMetricFromGetAsJSONRequest(req)
 	if err != nil {
@@ -137,8 +141,10 @@ func (r *MetricsRouter) getAsJSONHandler(res http.ResponseWriter, req *http.Requ
 }
 
 // getAsTextHandler handles endpoint: GET /value/{type}/{name}
-// request: none
-// response type: "text/plain; charset=utf-8", body: metric value as string
+//
+// Request: none
+//
+// Response type: "text/plain; charset=utf-8", body: metric value as string
 func (r *MetricsRouter) getAsTextHandler(res http.ResponseWriter, req *http.Request) {
 	validMetric, err := adapters.ConvertMetricFromGetGetAsTextRequest(req)
 	if err != nil {
@@ -205,8 +211,10 @@ func handleGetterError(err error, res http.ResponseWriter, req *http.Request) {
 }
 
 // updateFromJSONHandler handles endpoint: POST /update/
-// request type: "application/json", body: models.Metric
-// response	type: "application/json", body: models.Metric
+//
+// Request type: "application/json", body: models.Metric
+//
+// Response	type: "application/json", body: models.Metric
 func (r *MetricsRouter) updateFromJSONHandler(res http.ResponseWriter, req *http.Request) {
 	validMetric, err := adapters.ConvertMetricFromUpdateFromJSONRequest(req)
 	if err != nil {
@@ -234,8 +242,10 @@ func (r *MetricsRouter) updateFromJSONHandler(res http.ResponseWriter, req *http
 }
 
 // updateBatchFromJSONHandler handles endpoint: POST /updates/
-// request type: "application/json", body: []models.Metric
-// response type: "application/json", body: []models.Metric
+//
+// Request type: "application/json", body: []models.Metric
+//
+// Response type: "application/json", body: []models.Metric
 func (r *MetricsRouter) updateBatchFromJSONHandler(res http.ResponseWriter, req *http.Request) {
 	validMetrics, err := adapters.ConvertBatchMetricFromUpdateFromJSONRequest(req)
 	if err != nil {
@@ -263,8 +273,10 @@ func (r *MetricsRouter) updateBatchFromJSONHandler(res http.ResponseWriter, req 
 }
 
 // updateFromURLHandler handles endpoint: POST /update/{type}/{name}/{value}
-// request: none
-// response	type: "text/plain; charset=utf-8", body: none
+//
+// Request: none
+//
+// Response	type: "text/plain; charset=utf-8", body: none
 func (r *MetricsRouter) updateFromURLHandler(res http.ResponseWriter, req *http.Request) {
 	validMetric, err := adapters.ConvertMetricFromUpdateFromURLRequest(req)
 	if err != nil {
