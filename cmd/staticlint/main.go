@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/PiskarevSA/go-advanced/cmd/staticlint/noosexit"
 	"github.com/PiskarevSA/go-advanced/cmd/staticlint/standard"
 	"github.com/PiskarevSA/go-advanced/cmd/staticlint/staticcheck"
 	"github.com/kisielk/errcheck/errcheck"
@@ -23,6 +24,9 @@ func main() {
 		errcheck.Analyzer,  // checking for unchecked errors in Go code
 		bodyclose.Analyzer, // checks whether res.Body is correctly closed
 	)
+
+	// собственный анализатор, запрещающий использовать прямой вызов os.Exit в функции main пакета main
+	analyzers = append(analyzers, noosexit.Analyzer)
 
 	multichecker.Main(analyzers...)
 }
