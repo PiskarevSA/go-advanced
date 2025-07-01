@@ -168,14 +168,14 @@ func (r *MetricsRouter) getAsTextHandler(res http.ResponseWriter, req *http.Requ
 	case entities.MetricTypeCounter:
 		response = fmt.Sprint(responseMetric.Delta)
 	default:
-		err := entities.NewInternalError(
+		err = entities.NewInternalError(
 			"unexpected internal metric type: "+responseMetric.Type.String(), nil)
 		handleGetterError(err, res, req)
 		return
 	}
 	_, err = res.Write([]byte(response))
 	if err != nil {
-		err := entities.NewInternalError(
+		err = entities.NewInternalError(
 			"response writing error: "+responseMetric.Type.String(), err)
 		handleGetterError(err, res, req)
 		return
