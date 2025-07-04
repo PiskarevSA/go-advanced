@@ -3,17 +3,32 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent"
 )
 
+var (
+	buildVersion string = `N/A`
+	buildDate    string = `N/A`
+	buildCommit  string = `N/A`
+)
+
+func printVersion() {
+	fmt.Println("Build version:", buildVersion)
+	fmt.Println("Build date:", buildDate)
+	fmt.Println("Build commit:", buildCommit)
+}
+
 func main() {
 	exitCode := 0
 	defer func() {
 		os.Exit(exitCode)
 	}()
+
+	printVersion()
 
 	config, err := agent.ReadConfig()
 	if err != nil {
