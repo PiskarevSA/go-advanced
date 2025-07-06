@@ -11,7 +11,8 @@ import (
 )
 
 func main() {
-	var analyzers []*analysis.Analyzer
+	analyzers := make([]*analysis.Analyzer, 0,
+		len(standard.Analyzers)+len(staticcheck.Analyzers)+3)
 
 	// стандартные статические анализаторы пакета golang.org/x/tools/go/analysis/passes
 	analyzers = append(analyzers, standard.Analyzers...)

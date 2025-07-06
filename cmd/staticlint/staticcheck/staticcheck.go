@@ -10,20 +10,15 @@ import (
 var Analyzers = analyzers()
 
 func accept(name string) bool {
-	// SA staticcheck
+	// Все анализаторы SA staticcheck
 	if strings.HasPrefix(name, "SA") {
 		return true
 	}
-	// S simple
-	if name == "S1000" { // Use plain channel send or receive instead of single-case select
-		return true
-	}
-	// ST stylecheck
-	if name == "ST1001" { // Dot imports are discouraged
-		return true
-	}
-	// QF quickfix
-	if name == "QF1001" { // Apply De Morgan’s law
+	// По одному из S simple, ST stylecheck и QF quickfix
+	switch name {
+	case "S1000", // Use plain channel send or receive instead of single-case select
+		"ST1001", // Dot imports are discouraged
+		"QF1001": // Apply De Morgan’s law
 		return true
 	}
 	return false
@@ -34,7 +29,6 @@ func analyzers() []*analysis.Analyzer {
 	for _, v := range staticcheck.Analyzers {
 		if accept(v.Analyzer.Name) {
 			result = append(result, v.Analyzer)
-			return result
 		}
 	}
 	return result

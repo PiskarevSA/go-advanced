@@ -10,7 +10,7 @@ import (
 
 var Analyzer = &analysis.Analyzer{
 	Name: "noosexit",
-	Doc:  "disallows direct call to os.Exit in main.main function",
+	Doc:  "disallows direct call to os.Exit in main.main function (except first defer statement)",
 	Run:  run,
 }
 
