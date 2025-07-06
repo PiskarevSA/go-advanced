@@ -38,11 +38,11 @@ func doTransaction(
 
 		defer func() { _ = tx.Rollback(ctx) }()
 
-		if err := doQueries(tx); err != nil {
+		if err = doQueries(tx); err != nil {
 			return err
 		}
 
-		if err := tx.Commit(ctx); err != nil {
+		if err = tx.Commit(ctx); err != nil {
 			return entities.NewInternalError("failed to commit transaction", err)
 		}
 
