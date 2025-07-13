@@ -16,6 +16,7 @@ const (
 	defaultServerAddress     = "localhost:8080"
 	defaultKey               = ""
 	defaultRateLimit         = 1
+	defaultCryptoKey         = ""
 )
 
 type Config struct {
@@ -24,6 +25,7 @@ type Config struct {
 	ServerAddress     string `env:"ADDRESS"`
 	Key               string `env:"KEY"`
 	RateLimit         int    `env:"RATE_LIMIT"`
+	CryptoKey         string `env:"CRYPTO_KEY"`
 }
 
 func NewConfig() *Config {
@@ -33,6 +35,7 @@ func NewConfig() *Config {
 		ServerAddress:     defaultServerAddress,
 		Key:               defaultKey,
 		RateLimit:         defaultRateLimit,
+		CryptoKey:         defaultCryptoKey,
 	}
 }
 
@@ -47,6 +50,7 @@ func (c Config) LogValue() slog.Value {
 		slog.String("ServerAddress", c.ServerAddress),
 		slog.String("Key", c.Key),
 		slog.Int("RateLimit", c.RateLimit),
+		slog.String("CryptoKey", c.CryptoKey),
 	)
 }
 
@@ -61,6 +65,8 @@ func (c *Config) ParseFlags() error {
 		"the key for signing the request body (the signature is in the HashSHA256 header); env: KEY")
 	flag.IntVar(&c.RateLimit, "l", c.RateLimit,
 		"max number of concurrent calls to server, flush to console if 0; env: RATE_LIMIT")
+	flag.StringVar(&c.CryptoKey, "crypto-key", c.CryptoKey,
+		"the path to the file with the server's public key for encrypting the message from the agent to the server; env: CRYPTO_KEY")
 	flag.CommandLine.Init("", flag.ContinueOnError)
 	err := flag.CommandLine.Parse(os.Args[1:])
 	if err != nil {
