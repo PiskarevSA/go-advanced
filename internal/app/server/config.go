@@ -19,6 +19,7 @@ const (
 	defaultRestore         = false
 	defaultDatabaseDSN     = ""
 	defaultKey             = ""
+	defaultCryptoKey       = ""
 )
 
 type Config struct {
@@ -28,6 +29,7 @@ type Config struct {
 	Restore         bool   `env:"RESTORE"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
 	Key             string `env:"KEY"`
+	CryptoKey       string `env:"CRYPTO_KEY"`
 }
 
 func NewConfig() *Config {
@@ -38,6 +40,7 @@ func NewConfig() *Config {
 		Restore:         defaultRestore,
 		DatabaseDSN:     defaultDatabaseDSN,
 		Key:             defaultKey,
+		CryptoKey:       defaultCryptoKey,
 	}
 }
 
@@ -60,6 +63,7 @@ func (c Config) LogValue() slog.Value {
 		slog.Bool("Restore", c.Restore),
 		slog.String("DatabaseDSN", c.DatabaseDSN),
 		slog.String("Key", c.Key),
+		slog.String("CryptoKey", c.CryptoKey),
 	)
 }
 
@@ -76,6 +80,8 @@ func (c *Config) ParseFlags() error {
 		"database data source name (DSN)")
 	flag.StringVar(&c.Key, "k", c.Key,
 		"the key for validating the request body and signing the response body (both signatures are in the HashSHA256 header); env: KEY")
+	flag.StringVar(&c.CryptoKey, "crypto-key", c.CryptoKey,
+		"The path to the file with the server's private key for decrypting the message from the agent to the server; env: CRYPTO_KEY")
 	flag.CommandLine.Init("", flag.ContinueOnError)
 	err := flag.CommandLine.Parse(os.Args[1:])
 	if err != nil {

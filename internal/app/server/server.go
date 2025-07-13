@@ -128,11 +128,24 @@ func (s *Server) createMetricsUsecase(storage usecaseStorage,
 }
 
 func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
+	middlewares := []func(http.Handler) http.Handler{
+		middleware.Summary,
+	}
+	if len(s.config.CryptoKey) > 0 {
+		var err error
+		decoder, err := middleware.RSADecoder(s.config.CryptoKey)
+		if err != nil {
+			slog.Error("[main] create server", "error", err.Error())
+			return nil
+		}
+		if decoder != nil {
+			middlewares = append(middlewares, decoder)
+		}
+	}
+	middlewares = append(middlewares, middleware.Integrity(s.config.Key))
+	middlewares = append(middlewares, middleware.Encoding)
 	r := handlers.NewMetricsRouter(usecase).
-		WithMiddlewares(
-			middleware.Summary,
-			middleware.Integrity(s.config.Key),
-			middleware.Encoding).
+		WithMiddlewares(middlewares...).
 		WithAllHandlers()
 	server := http.Server{
 		Addr: s.config.ServerAddress,
