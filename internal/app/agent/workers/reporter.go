@@ -27,11 +27,12 @@ type Reporter struct {
 	serverAddress string
 	key           string
 	httpClient    *http.Client
+	encoder       func(*http.Request) error
 }
 
 func NewReporter(
 	wg *sync.WaitGroup, index int, metricsChan <-chan metrics.Metrics,
-	serverAddress string, key string,
+	serverAddress string, key string, encoder func(*http.Request) error,
 ) *Reporter {
 	return &Reporter{
 		wg:            wg,
@@ -43,6 +44,7 @@ func NewReporter(
 			Timeout:   15 * time.Second,
 			Transport: httpretry.NewRetryableTransport(),
 		},
+		encoder: encoder,
 	}
 }
 
@@ -144,6 +146,14 @@ func (r *Reporter) reportToURL(url string, body []byte, key string) error {
 	if len(hexSum) > 0 {
 		req.Header.Set("HashSHA256", hexSum)
 	}
+
+	if r.encoder != nil {
+		err = r.encoder(req)
+		if err != nil {
+			return fmt.Errorf("rsa encode: %w", err)
+		}
+	}
+
 	res, err := r.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("httpClient.Do(): %w", err)

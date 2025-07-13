@@ -24,10 +24,7 @@ func (a *Agent) Run(config *Config) bool {
 	ctx, cancel := a.setupSignalHandler()
 	defer cancel() // Ensure cancel is called at the end to clean up
 
-	a.startWorkers(ctx, config)
-
-	// agent will never fails actually
-	return true
+	return a.startWorkers(ctx, config)
 }
 
 func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
@@ -54,7 +51,7 @@ func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
 	return ctx, cancel
 }
 
-func (a *Agent) startWorkers(ctx context.Context, config *Config) {
+func (a *Agent) startWorkers(ctx context.Context, config *Config) bool {
 	// Wait group to ensure all goroutines finish before exiting
 	var wg sync.WaitGroup
 
@@ -75,9 +72,12 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) {
 
 	// report metrics to server periodically
 	reporterPool := workers.NewReporterPool(
-		&wg, config.RateLimit, metricsChan, config.ServerAddress, config.Key)
-	reporterPool.StartReporters(ctx)
+		&wg, config.RateLimit, metricsChan, config.ServerAddress, config.Key, config.CryptoKey)
+	if !reporterPool.StartReporters(ctx) {
+		return false
+	}
 
 	// Wait for all goroutines to finish
 	wg.Wait()
+	return true
 }
