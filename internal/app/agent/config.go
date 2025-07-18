@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 )
 
 const (
+	defaultJsonConfigPath    = ""
 	defaultPollIntervalSec   = 2
 	defaultReportIntervalSec = 10
 	defaultServerAddress     = "localhost:8080"
@@ -20,16 +22,18 @@ const (
 )
 
 type Config struct {
-	PollIntervalSec   int    `env:"POLL_INTERVAL"`
-	ReportIntervalSec int    `env:"REPORT_INTERVAL"`
-	ServerAddress     string `env:"ADDRESS"`
-	Key               string `env:"KEY"`
-	RateLimit         int    `env:"RATE_LIMIT"`
-	CryptoKey         string `env:"CRYPTO_KEY"`
+	JsonConfigPath    string `env:"CONFIG"`
+	PollIntervalSec   int    `env:"POLL_INTERVAL" json:"poll_interval"`
+	ReportIntervalSec int    `env:"REPORT_INTERVAL" json:"report_interval"`
+	ServerAddress     string `env:"ADDRESS" json:"address"`
+	Key               string `env:"KEY" json:"key"`
+	RateLimit         int    `env:"RATE_LIMIT" json:"rate_limit"`
+	CryptoKey         string `env:"CRYPTO_KEY" json:"crypto_key"`
 }
 
 func NewConfig() *Config {
-	return &Config{
+	result := &Config{
+		JsonConfigPath:    defaultJsonConfigPath,
 		PollIntervalSec:   defaultPollIntervalSec,
 		ReportIntervalSec: defaultReportIntervalSec,
 		ServerAddress:     defaultServerAddress,
@@ -37,6 +41,21 @@ func NewConfig() *Config {
 		RateLimit:         defaultRateLimit,
 		CryptoKey:         defaultCryptoKey,
 	}
+	flag.StringVar(&result.JsonConfigPath, "c", result.JsonConfigPath,
+		"path to .json config file; env: CONFIG")
+	flag.IntVar(&result.PollIntervalSec, "p", result.PollIntervalSec,
+		"interval between polling metrics, seconds; env: POLL_INTERVAL")
+	flag.IntVar(&result.ReportIntervalSec, "r", result.ReportIntervalSec,
+		"interval between sending metrics to server, seconds; env: REPORT_INTERVAL")
+	flag.StringVar(&result.ServerAddress, "a", result.ServerAddress,
+		"server address; env: ADDRESS")
+	flag.StringVar(&result.Key, "k", result.Key,
+		"the key for signing the request body (the signature is in the HashSHA256 header); env: KEY")
+	flag.IntVar(&result.RateLimit, "l", result.RateLimit,
+		"max number of concurrent calls to server, flush to console if 0; env: RATE_LIMIT")
+	flag.StringVar(&result.CryptoKey, "crypto-key", result.CryptoKey,
+		"the path to the file with the server's public key for encrypting the message from the agent to the server; env: CRYPTO_KEY")
+	return result
 }
 
 func (c Config) LogValue() slog.Value {
@@ -45,6 +64,7 @@ func (c Config) LogValue() slog.Value {
 		c.Key = "[redacted]"
 	}
 	return slog.GroupValue(
+		slog.String("JsonConfigPath", c.JsonConfigPath),
 		slog.Int("PollIntervalSec", c.PollIntervalSec),
 		slog.Int("ReportIntervalSec", c.ReportIntervalSec),
 		slog.String("ServerAddress", c.ServerAddress),
@@ -55,18 +75,6 @@ func (c Config) LogValue() slog.Value {
 }
 
 func (c *Config) ParseFlags() error {
-	flag.IntVar(&c.PollIntervalSec, "p", c.PollIntervalSec,
-		"interval between polling metrics, seconds; env: POLL_INTERVAL")
-	flag.IntVar(&c.ReportIntervalSec, "r", c.ReportIntervalSec,
-		"interval between sending metrics to server, seconds; env: REPORT_INTERVAL")
-	flag.StringVar(&c.ServerAddress, "a", c.ServerAddress,
-		"server address; env: ADDRESS")
-	flag.StringVar(&c.Key, "k", c.Key,
-		"the key for signing the request body (the signature is in the HashSHA256 header); env: KEY")
-	flag.IntVar(&c.RateLimit, "l", c.RateLimit,
-		"max number of concurrent calls to server, flush to console if 0; env: RATE_LIMIT")
-	flag.StringVar(&c.CryptoKey, "crypto-key", c.CryptoKey,
-		"the path to the file with the server's public key for encrypting the message from the agent to the server; env: CRYPTO_KEY")
 	flag.CommandLine.Init("", flag.ContinueOnError)
 	err := flag.CommandLine.Parse(os.Args[1:])
 	if err != nil {
@@ -88,6 +96,19 @@ func (c *Config) ReadEnv() error {
 	return nil
 }
 
+func (c *Config) ReadJsonFile() error {
+	f, err := os.Open(c.JsonConfigPath)
+	if err != nil {
+		return fmt.Errorf("read json file: %w", err)
+	}
+	decoder := json.NewDecoder(f)
+	err = decoder.Decode(c)
+	if err != nil {
+		return fmt.Errorf("read json file: %w", err)
+	}
+	return nil
+}
+
 func ReadConfig() (*Config, error) {
 	c := NewConfig()
 	slog.Info("[main] default", "config", *c)
@@ -103,5 +124,28 @@ func ReadConfig() (*Config, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 	slog.Info("[main] after env", "config", *c)
+
+	// return if no json config file provided
+	if len(c.JsonConfigPath) == 0 {
+		return c, nil
+	}
+
+	// json config file provided, but it have least priority, so we need
+	// to read all configs again
+	err = c.ReadJsonFile()
+	if err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+	slog.Info("[main] after json", "config", *c)
+	err = c.ParseFlags()
+	if err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+	slog.Info("[main] after flags repeated", "config", *c)
+	err = c.ReadEnv()
+	if err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+	slog.Info("[main] after env repeated", "config", *c)
 	return c, nil
 }

@@ -142,8 +142,9 @@ func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
 			middlewares = append(middlewares, decoder)
 		}
 	}
-	middlewares = append(middlewares, middleware.Integrity(s.config.Key))
-	middlewares = append(middlewares, middleware.Encoding)
+	middlewares = append(middlewares,
+		middleware.Integrity(s.config.Key),
+		middleware.Encoding)
 	r := handlers.NewMetricsRouter(usecase).
 		WithMiddlewares(middlewares...).
 		WithAllHandlers()
