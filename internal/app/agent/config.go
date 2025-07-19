@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultJsonConfigPath    = ""
+	defaultJSONConfigPath    = ""
 	defaultPollIntervalSec   = 2
 	defaultReportIntervalSec = 10
 	defaultServerAddress     = "localhost:8080"
@@ -22,7 +22,7 @@ const (
 )
 
 type Config struct {
-	JsonConfigPath    string `env:"CONFIG"`
+	JSONConfigPath    string `env:"CONFIG"`
 	PollIntervalSec   int    `env:"POLL_INTERVAL" json:"poll_interval"`
 	ReportIntervalSec int    `env:"REPORT_INTERVAL" json:"report_interval"`
 	ServerAddress     string `env:"ADDRESS" json:"address"`
@@ -33,7 +33,7 @@ type Config struct {
 
 func NewConfig() *Config {
 	result := &Config{
-		JsonConfigPath:    defaultJsonConfigPath,
+		JSONConfigPath:    defaultJSONConfigPath,
 		PollIntervalSec:   defaultPollIntervalSec,
 		ReportIntervalSec: defaultReportIntervalSec,
 		ServerAddress:     defaultServerAddress,
@@ -41,7 +41,7 @@ func NewConfig() *Config {
 		RateLimit:         defaultRateLimit,
 		CryptoKey:         defaultCryptoKey,
 	}
-	flag.StringVar(&result.JsonConfigPath, "c", result.JsonConfigPath,
+	flag.StringVar(&result.JSONConfigPath, "c", result.JSONConfigPath,
 		"path to .json config file; env: CONFIG")
 	flag.IntVar(&result.PollIntervalSec, "p", result.PollIntervalSec,
 		"interval between polling metrics, seconds; env: POLL_INTERVAL")
@@ -64,7 +64,7 @@ func (c Config) LogValue() slog.Value {
 		c.Key = "[redacted]"
 	}
 	return slog.GroupValue(
-		slog.String("JsonConfigPath", c.JsonConfigPath),
+		slog.String("JSONConfigPath", c.JSONConfigPath),
 		slog.Int("PollIntervalSec", c.PollIntervalSec),
 		slog.Int("ReportIntervalSec", c.ReportIntervalSec),
 		slog.String("ServerAddress", c.ServerAddress),
@@ -96,8 +96,8 @@ func (c *Config) ReadEnv() error {
 	return nil
 }
 
-func (c *Config) ReadJsonFile() error {
-	f, err := os.Open(c.JsonConfigPath)
+func (c *Config) ReadJSONFile() error {
+	f, err := os.Open(c.JSONConfigPath)
 	if err != nil {
 		return fmt.Errorf("read json file: %w", err)
 	}
@@ -126,13 +126,13 @@ func ReadConfig() (*Config, error) {
 	slog.Info("[main] after env", "config", *c)
 
 	// return if no json config file provided
-	if len(c.JsonConfigPath) == 0 {
+	if len(c.JSONConfigPath) == 0 {
 		return c, nil
 	}
 
 	// json config file provided, but it have least priority, so we need
 	// to read all configs again
-	err = c.ReadJsonFile()
+	err = c.ReadJSONFile()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}

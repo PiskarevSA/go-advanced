@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultJsonConfigPath  = ""
+	defaultJSONConfigPath  = ""
 	defaultServerAddress   = "localhost:8080"
 	defaultStoreInterval   = 300
 	defaultFileStoragePath = "metrics.json"
@@ -25,9 +25,9 @@ const (
 )
 
 type Config struct {
-	JsonConfigPath  string `env:"CONFIG"`
+	JSONConfigPath  string `env:"CONFIG"`
 	ServerAddress   string `env:"ADDRESS" json:"address"`
-	StoreInterval   int    `env:"STORE_INTERVAL" json"store_interval"`
+	StoreInterval   int    `env:"STORE_INTERVAL" json:"store_interval"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH" json:"store_file"`
 	Restore         bool   `env:"RESTORE" json:"restore"`
 	DatabaseDSN     string `env:"DATABASE_DSN" json:"database_dsn"`
@@ -37,7 +37,7 @@ type Config struct {
 
 func NewConfig() *Config {
 	result := &Config{
-		JsonConfigPath:  defaultJsonConfigPath,
+		JSONConfigPath:  defaultJSONConfigPath,
 		ServerAddress:   defaultServerAddress,
 		StoreInterval:   defaultStoreInterval,
 		FileStoragePath: defaultFileStoragePath,
@@ -46,7 +46,7 @@ func NewConfig() *Config {
 		Key:             defaultKey,
 		CryptoKey:       defaultCryptoKey,
 	}
-	flag.StringVar(&result.JsonConfigPath, "c", result.JsonConfigPath,
+	flag.StringVar(&result.JSONConfigPath, "c", result.JSONConfigPath,
 		"path to .json config file; env: CONFIG")
 	flag.StringVar(&result.ServerAddress, "a", result.ServerAddress,
 		"server address; env: ADDRESS")
@@ -78,7 +78,7 @@ func (c Config) LogValue() slog.Value {
 	}
 
 	return slog.GroupValue(
-		slog.String("JsonConfigPath", c.JsonConfigPath),
+		slog.String("JSONConfigPath", c.JSONConfigPath),
 		slog.String("ServerAddress", c.ServerAddress),
 		slog.Int("StoreInterval", c.StoreInterval),
 		slog.String("FileStoragePath", c.FileStoragePath),
@@ -111,8 +111,8 @@ func (c *Config) ReadEnv() error {
 	return nil
 }
 
-func (c *Config) ReadJsonFile() error {
-	f, err := os.Open(c.JsonConfigPath)
+func (c *Config) ReadJSONFile() error {
+	f, err := os.Open(c.JSONConfigPath)
 	if err != nil {
 		return fmt.Errorf("read json file: %w", err)
 	}
@@ -141,13 +141,13 @@ func ReadConfig() (*Config, error) {
 	slog.Info("[main] after env", "config", *c)
 
 	// return if no json config file provided
-	if len(c.JsonConfigPath) == 0 {
+	if len(c.JSONConfigPath) == 0 {
 		return c, nil
 	}
 
 	// json config file provided, but it have least priority, so we need
 	// to read all configs again
-	err = c.ReadJsonFile()
+	err = c.ReadJSONFile()
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
