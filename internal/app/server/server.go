@@ -72,7 +72,7 @@ func (s *Server) setupSignalHandler() (context.Context, context.CancelFunc) {
 
 	// Channel to listen for system signals (e.g., Ctrl+C)
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
 		slog.Info("[signal handler] Waiting for an interrupt signal...")
