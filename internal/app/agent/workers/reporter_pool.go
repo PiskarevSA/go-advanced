@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent/metrics"
-	"github.com/PiskarevSA/go-advanced/internal/middleware/rsamiddleware"
+	rsamiddleware "github.com/PiskarevSA/go-advanced/internal/middleware/rsa"
 )
 
 type ReporterPool struct {

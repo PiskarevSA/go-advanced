@@ -14,7 +14,7 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/PiskarevSA/go-advanced/internal/handlers"
 	"github.com/PiskarevSA/go-advanced/internal/middleware"
-	"github.com/PiskarevSA/go-advanced/internal/middleware/rsamiddleware"
+	rsamiddleware "github.com/PiskarevSA/go-advanced/internal/middleware/rsa"
 	"github.com/PiskarevSA/go-advanced/internal/storage/filestorage"
 	"github.com/PiskarevSA/go-advanced/internal/storage/memstorage"
 	"github.com/PiskarevSA/go-advanced/internal/storage/pgstorage"
