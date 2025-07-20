@@ -1,4 +1,4 @@
-package middleware
+package rsamiddleware
 
 import (
 	"bytes"
@@ -8,21 +8,21 @@ import (
 	"net/http"
 )
 
-type rsaEncoder struct {
+type encoder struct {
 	pub *rsa.PublicKey
 }
 
-// RSAEncoder возвращает функцию, шифрующую тело запроса с использованием RSA.
-func RSAEncoder(pubKeyPath string) (func(*http.Request) error, error) {
+// Encoder возвращает функцию, шифрующую тело запроса с использованием RSA.
+func Encoder(pubKeyPath string) (func(*http.Request) error, error) {
 	pub, err := loadPublicKey(pubKeyPath)
 	if err != nil {
 		return nil, err
 	}
-	e := &rsaEncoder{pub: pub}
+	e := &encoder{pub: pub}
 	return e.encryptBody, nil
 }
 
-func (e *rsaEncoder) encryptBody(req *http.Request) error {
+func (e *encoder) encryptBody(req *http.Request) error {
 	if req.Body == nil {
 		return nil
 	}

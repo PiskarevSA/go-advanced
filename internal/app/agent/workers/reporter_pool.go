@@ -2,12 +2,13 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent/metrics"
-	"github.com/PiskarevSA/go-advanced/internal/middleware"
+	"github.com/PiskarevSA/go-advanced/internal/middleware/rsamiddleware"
 )
 
 type ReporterPool struct {
@@ -33,22 +34,21 @@ func NewReporterPool(
 	}
 }
 
-func (p *ReporterPool) StartReporters(ctx context.Context) bool {
+func (p *ReporterPool) StartReporters(ctx context.Context) error {
 	if p.rateLimit < 1 {
 		slog.Warn("[reporter pool] start flusher instead of reporters",
 			"rateLimit", p.rateLimit)
 		flusher := NewFlusher(p.wg, p.metricsChan)
 		flusher.Start(ctx)
-		return true
+		return nil
 	}
 
 	var encoder func(*http.Request) error
 	if len(p.cryptoKey) > 0 {
 		var err error
-		encoder, err = middleware.RSAEncoder(p.cryptoKey)
+		encoder, err = rsamiddleware.Encoder(p.cryptoKey)
 		if err != nil {
-			slog.Error("[reporter pool] rsaencoder", "error", err.Error())
-			return false
+			return fmt.Errorf("rsaencoder: %w", err)
 		}
 	}
 
@@ -59,5 +59,5 @@ func (p *ReporterPool) StartReporters(ctx context.Context) bool {
 			p.metricsChan, p.serverAddress, p.key, encoder)
 		reporter.Start(ctx)
 	}
-	return true
+	return nil
 }

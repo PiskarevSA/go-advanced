@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent"
+	"github.com/PiskarevSA/go-advanced/internal/app/pkg/configreader"
 )
 
 var (
@@ -30,7 +31,8 @@ func main() {
 
 	printVersion()
 
-	config, err := agent.ReadConfig()
+	config := agent.NewConfig()
+	err := configreader.Do(config)
 	if err != nil {
 		slog.Error(err.Error())
 		exitCode = 1

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -24,7 +25,11 @@ func (a *Agent) Run(config *Config) bool {
 	ctx, cancel := a.setupSignalHandler()
 	defer cancel() // Ensure cancel is called at the end to clean up
 
-	return a.startWorkers(ctx, config)
+	if err := a.startWorkers(ctx, config); err != nil {
+		slog.Error("[main] failed to start workers", "error", err.Error())
+		return false
+	}
+	return true
 }
 
 func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
@@ -51,7 +56,7 @@ func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
 	return ctx, cancel
 }
 
-func (a *Agent) startWorkers(ctx context.Context, config *Config) bool {
+func (a *Agent) startWorkers(ctx context.Context, config *Config) error {
 	// Wait group to ensure all goroutines finish before exiting
 	var wg sync.WaitGroup
 
@@ -73,11 +78,11 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) bool {
 	// report metrics to server periodically
 	reporterPool := workers.NewReporterPool(
 		&wg, config.RateLimit, metricsChan, config.ServerAddress, config.Key, config.CryptoKey)
-	if !reporterPool.StartReporters(ctx) {
-		return false
+	if err := reporterPool.StartReporters(ctx); err != nil {
+		return fmt.Errorf("start reporters: %w", err)
 	}
 
 	// Wait for all goroutines to finish
 	wg.Wait()
-	return true
+	return nil
 }

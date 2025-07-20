@@ -25,7 +25,7 @@ const (
 )
 
 type Config struct {
-	JSONConfigPath  string `env:"CONFIG"`
+	jsonConfigPath  string `env:"CONFIG"`
 	ServerAddress   string `env:"ADDRESS" json:"address"`
 	StoreInterval   int    `env:"STORE_INTERVAL" json:"store_interval"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH" json:"store_file"`
@@ -37,7 +37,7 @@ type Config struct {
 
 func NewConfig() *Config {
 	result := &Config{
-		JSONConfigPath:  defaultJSONConfigPath,
+		jsonConfigPath:  defaultJSONConfigPath,
 		ServerAddress:   defaultServerAddress,
 		StoreInterval:   defaultStoreInterval,
 		FileStoragePath: defaultFileStoragePath,
@@ -46,7 +46,7 @@ func NewConfig() *Config {
 		Key:             defaultKey,
 		CryptoKey:       defaultCryptoKey,
 	}
-	flag.StringVar(&result.JSONConfigPath, "c", result.JSONConfigPath,
+	flag.StringVar(&result.jsonConfigPath, "c", result.jsonConfigPath,
 		"path to .json config file; env: CONFIG")
 	flag.StringVar(&result.ServerAddress, "a", result.ServerAddress,
 		"server address; env: ADDRESS")
@@ -78,7 +78,7 @@ func (c Config) LogValue() slog.Value {
 	}
 
 	return slog.GroupValue(
-		slog.String("JSONConfigPath", c.JSONConfigPath),
+		slog.String("JSONConfigPath", c.jsonConfigPath),
 		slog.String("ServerAddress", c.ServerAddress),
 		slog.Int("StoreInterval", c.StoreInterval),
 		slog.String("FileStoragePath", c.FileStoragePath),
@@ -111,8 +111,12 @@ func (c *Config) ReadEnv() error {
 	return nil
 }
 
+func (c *Config) JSONConfigPath() string {
+	return c.jsonConfigPath
+}
+
 func (c *Config) ReadJSONFile() error {
-	f, err := os.Open(c.JSONConfigPath)
+	f, err := os.Open(c.jsonConfigPath)
 	if err != nil {
 		return fmt.Errorf("read json file: %w", err)
 	}
@@ -122,45 +126,4 @@ func (c *Config) ReadJSONFile() error {
 		return fmt.Errorf("read json file: %w", err)
 	}
 	return nil
-}
-
-func ReadConfig() (*Config, error) {
-	c := NewConfig()
-	slog.Info("[main] default", "config", *c)
-	// flags takes less priority according to task description
-	err := c.ParseFlags()
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-	slog.Info("[main] after flags", "config", *c)
-	// environment takes higher priority according to task description
-	err = c.ReadEnv()
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-	slog.Info("[main] after env", "config", *c)
-
-	// return if no json config file provided
-	if len(c.JSONConfigPath) == 0 {
-		return c, nil
-	}
-
-	// json config file provided, but it have least priority, so we need
-	// to read all configs again
-	err = c.ReadJSONFile()
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-	slog.Info("[main] after json", "config", *c)
-	err = c.ParseFlags()
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-	slog.Info("[main] after flags repeated", "config", *c)
-	err = c.ReadEnv()
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-	slog.Info("[main] after env repeated", "config", *c)
-	return c, nil
 }

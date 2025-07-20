@@ -14,6 +14,7 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/PiskarevSA/go-advanced/internal/handlers"
 	"github.com/PiskarevSA/go-advanced/internal/middleware"
+	"github.com/PiskarevSA/go-advanced/internal/middleware/rsamiddleware"
 	"github.com/PiskarevSA/go-advanced/internal/storage/filestorage"
 	"github.com/PiskarevSA/go-advanced/internal/storage/memstorage"
 	"github.com/PiskarevSA/go-advanced/internal/storage/pgstorage"
@@ -133,7 +134,7 @@ func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
 	}
 	if len(s.config.CryptoKey) > 0 {
 		var err error
-		decoder, err := middleware.RSADecoder(s.config.CryptoKey)
+		decoder, err := rsamiddleware.Decoder(s.config.CryptoKey)
 		if err != nil {
 			slog.Error("[main] create server", "error", err.Error())
 			return nil

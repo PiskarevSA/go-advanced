@@ -1,4 +1,4 @@
-package middleware
+package rsamiddleware
 
 import (
 	"bytes"
@@ -7,22 +7,22 @@ import (
 	"net/http"
 )
 
-type rsaDecoder struct {
+type decoder struct {
 	priv *rsa.PrivateKey
 }
 
-// RSADecoder возвращает middleware, расшифровывающее тело запроса,
+// Decoder возвращает middleware, расшифровывающее тело запроса,
 // если Content-Type — application/octet-stream.
-func RSADecoder(privKeyPath string) (func(http.Handler) http.Handler, error) {
+func Decoder(privKeyPath string) (func(http.Handler) http.Handler, error) {
 	priv, err := loadPrivateKey(privKeyPath)
 	if err != nil {
 		return nil, err
 	}
-	d := &rsaDecoder{priv: priv}
+	d := &decoder{priv: priv}
 	return d.decryptBodyMiddleware, nil
 }
 
-func (d *rsaDecoder) decryptBodyMiddleware(next http.Handler) http.Handler {
+func (d *decoder) decryptBodyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Content-Type") != "application/octet-stream" {
 			next.ServeHTTP(w, req)
