@@ -14,6 +14,7 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/entities"
 	"github.com/PiskarevSA/go-advanced/internal/handlers"
 	"github.com/PiskarevSA/go-advanced/internal/middleware"
+	rsamiddleware "github.com/PiskarevSA/go-advanced/internal/middleware/rsa"
 	"github.com/PiskarevSA/go-advanced/internal/storage/filestorage"
 	"github.com/PiskarevSA/go-advanced/internal/storage/memstorage"
 	"github.com/PiskarevSA/go-advanced/internal/storage/pgstorage"
@@ -72,7 +73,7 @@ func (s *Server) setupSignalHandler() (context.Context, context.CancelFunc) {
 
 	// Channel to listen for system signals (e.g., Ctrl+C)
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
 		slog.Info("[signal handler] Waiting for an interrupt signal...")
@@ -128,11 +129,25 @@ func (s *Server) createMetricsUsecase(storage usecaseStorage,
 }
 
 func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
+	middlewares := []func(http.Handler) http.Handler{
+		middleware.Summary,
+	}
+	if len(s.config.CryptoKey) > 0 {
+		var err error
+		decoder, err := rsamiddleware.Decoder(s.config.CryptoKey)
+		if err != nil {
+			slog.Error("[main] create server", "error", err.Error())
+			return nil
+		}
+		if decoder != nil {
+			middlewares = append(middlewares, decoder)
+		}
+	}
+	middlewares = append(middlewares,
+		middleware.Integrity(s.config.Key),
+		middleware.Encoding)
 	r := handlers.NewMetricsRouter(usecase).
-		WithMiddlewares(
-			middleware.Summary,
-			middleware.Integrity(s.config.Key),
-			middleware.Encoding).
+		WithMiddlewares(middlewares...).
 		WithAllHandlers()
 	server := http.Server{
 		Addr: s.config.ServerAddress,

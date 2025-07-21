@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -24,9 +25,10 @@ func (a *Agent) Run(config *Config) bool {
 	ctx, cancel := a.setupSignalHandler()
 	defer cancel() // Ensure cancel is called at the end to clean up
 
-	a.startWorkers(ctx, config)
-
-	// agent will never fails actually
+	if err := a.startWorkers(ctx, config); err != nil {
+		slog.Error("[main] failed to start workers", "error", err.Error())
+		return false
+	}
 	return true
 }
 
@@ -36,7 +38,7 @@ func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
 
 	// Channel to listen for system signals (e.g., Ctrl+C)
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
 		slog.Info("[signal handler] Waiting for an interrupt signal...")
@@ -54,7 +56,7 @@ func (a *Agent) setupSignalHandler() (context.Context, context.CancelFunc) {
 	return ctx, cancel
 }
 
-func (a *Agent) startWorkers(ctx context.Context, config *Config) {
+func (a *Agent) startWorkers(ctx context.Context, config *Config) error {
 	// Wait group to ensure all goroutines finish before exiting
 	var wg sync.WaitGroup
 
@@ -75,9 +77,12 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) {
 
 	// report metrics to server periodically
 	reporterPool := workers.NewReporterPool(
-		&wg, config.RateLimit, metricsChan, config.ServerAddress, config.Key)
-	reporterPool.StartReporters(ctx)
+		&wg, config.RateLimit, metricsChan, config.ServerAddress, config.Key, config.CryptoKey)
+	if err := reporterPool.StartReporters(ctx); err != nil {
+		return fmt.Errorf("start reporters: %w", err)
+	}
 
 	// Wait for all goroutines to finish
 	wg.Wait()
+	return nil
 }

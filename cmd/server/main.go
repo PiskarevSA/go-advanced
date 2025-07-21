@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/PiskarevSA/go-advanced/internal/app/pkg/configreader"
 	"github.com/PiskarevSA/go-advanced/internal/app/server"
 )
 
@@ -30,7 +31,8 @@ func main() {
 
 	printVersion()
 
-	config, err := server.ReadConfig()
+	config := server.NewConfig()
+	err := configreader.Do(config)
 	if err != nil {
 		slog.Error(err.Error())
 		exitCode = 1
