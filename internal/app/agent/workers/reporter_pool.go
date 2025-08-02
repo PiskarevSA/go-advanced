@@ -9,6 +9,7 @@ import (
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent/metrics"
 	rsamiddleware "github.com/PiskarevSA/go-advanced/internal/middleware/rsa"
+	"github.com/PiskarevSA/go-advanced/internal/middleware/subnet"
 )
 
 type ReporterPool struct {
@@ -43,6 +44,11 @@ func (p *ReporterPool) StartReporters(ctx context.Context) error {
 		return nil
 	}
 
+	setRealIP, err := subnet.SetHeader()
+	if err != nil {
+		return fmt.Errorf("subnet middleware: %w", err)
+	}
+
 	var encoder func(*http.Request) error
 	if len(p.cryptoKey) > 0 {
 		var err error
@@ -56,7 +62,8 @@ func (p *ReporterPool) StartReporters(ctx context.Context) error {
 		slog.Info("[reporter pool] start reporter",
 			"reporterIndex", reporterIndex)
 		reporter := NewReporter(p.wg, reporterIndex,
-			p.metricsChan, p.serverAddress, p.key, encoder)
+			p.metricsChan, p.serverAddress,
+			p.key, setRealIP, encoder)
 		reporter.Start(ctx)
 	}
 	return nil

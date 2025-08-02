@@ -27,12 +27,14 @@ type Reporter struct {
 	serverAddress string
 	key           string
 	httpClient    *http.Client
+	setRealIP     func(*http.Request)
 	encoder       func(*http.Request) error
 }
 
 func NewReporter(
 	wg *sync.WaitGroup, index int, metricsChan <-chan metrics.Metrics,
-	serverAddress string, key string, encoder func(*http.Request) error,
+	serverAddress string, key string, setRealIP func(*http.Request),
+	encoder func(*http.Request) error,
 ) *Reporter {
 	return &Reporter{
 		wg:            wg,
@@ -44,7 +46,8 @@ func NewReporter(
 			Timeout:   15 * time.Second,
 			Transport: httpretry.NewRetryableTransport(),
 		},
-		encoder: encoder,
+		setRealIP: setRealIP,
+		encoder:   encoder,
 	}
 }
 
@@ -146,6 +149,8 @@ func (r *Reporter) reportToURL(url string, body []byte, key string) error {
 	if len(hexSum) > 0 {
 		req.Header.Set("HashSHA256", hexSum)
 	}
+
+	r.setRealIP(req)
 
 	if r.encoder != nil {
 		err = r.encoder(req)

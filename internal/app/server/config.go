@@ -22,6 +22,7 @@ const (
 	defaultDatabaseDSN     = ""
 	defaultKey             = ""
 	defaultCryptoKey       = ""
+	defaultTrustedSubnet   = ""
 )
 
 type Config struct {
@@ -33,6 +34,7 @@ type Config struct {
 	DatabaseDSN     string `env:"DATABASE_DSN" json:"database_dsn"`
 	Key             string `env:"KEY" json:"key"`
 	CryptoKey       string `env:"CRYPTO_KEY" json:"crypto_key"`
+	TrustedSubnet   string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
 }
 
 func NewConfig() *Config {
@@ -45,6 +47,7 @@ func NewConfig() *Config {
 		DatabaseDSN:     defaultDatabaseDSN,
 		Key:             defaultKey,
 		CryptoKey:       defaultCryptoKey,
+		TrustedSubnet:   defaultTrustedSubnet,
 	}
 	flag.StringVar(&result.jsonConfigPath, "c", result.jsonConfigPath,
 		"path to .json config file; env: CONFIG")
@@ -62,6 +65,8 @@ func NewConfig() *Config {
 		"the key for validating the request body and signing the response body (both signatures are in the HashSHA256 header); env: KEY")
 	flag.StringVar(&result.CryptoKey, "crypto-key", result.CryptoKey,
 		"The path to the file with the server's private key for decrypting the message from the agent to the server; env: CRYPTO_KEY")
+	flag.StringVar(&result.TrustedSubnet, "t", result.TrustedSubnet,
+		"trusted subnet as a string representation of classless inter-domain routing (CIDR); env: TRUSTED_SUBNET")
 	return result
 }
 
@@ -86,6 +91,7 @@ func (c Config) LogValue() slog.Value {
 		slog.String("DatabaseDSN", c.DatabaseDSN),
 		slog.String("Key", c.Key),
 		slog.String("CryptoKey", c.CryptoKey),
+		slog.String("TrustedSubnet", c.TrustedSubnet),
 	)
 }
 
