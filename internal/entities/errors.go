@@ -11,6 +11,7 @@ var (
 	ErrJSONRequestExpected = errors.New("expected Content-Type=application/json")
 	ErrMissingValue        = errors.New("missing value")
 	ErrMissingDelta        = errors.New("missing delta")
+	ErrEmptyMetricType     = errors.New("empty metric type") // grpc
 )
 
 // stateful errors
