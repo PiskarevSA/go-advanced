@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package metrics;
+
+option go_package = "github.com/PiskarevSA/go-advanced/internal/proto";
+
+// Параметр
+message Gauge {
+    string name = 1; // имя
+    double value = 2; // значение
+}
+
+// Аккумулятор
+message Counter {
+    string name = 1; // имя
+    int64 value = 2; // значение
+}
+
+// Обобщённая метрика
+message Metric {
+    oneof metric {
+        Gauge gauge = 1;        // параметр
+        Counter counter = 2;    // аккумулятор
+    }
+}
+
+message UpdateMetricsRequest {
+    repeated Metric metrics = 1; // массив метрик, для аккумуляторов
+                                 // передаются изменения значения
+}
+
+message UpdateMetricsResponse {
+    repeated Metric metrics = 1; // массив метрик, для аккумуляторов
+                                 // возвращаются суммарные значения
+}
+
+service MetricsService {
+    rpc UpdateMetrics(UpdateMetricsRequest) returns (UpdateMetricsResponse);
+}
