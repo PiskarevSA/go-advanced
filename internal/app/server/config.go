@@ -14,45 +14,50 @@ import (
 )
 
 const (
-	defaultJSONConfigPath  = ""
-	defaultServerAddress   = "localhost:8080"
-	defaultStoreInterval   = 300
-	defaultFileStoragePath = "metrics.json"
-	defaultRestore         = false
-	defaultDatabaseDSN     = ""
-	defaultKey             = ""
-	defaultCryptoKey       = ""
-	defaultTrustedSubnet   = ""
+	defaultJSONConfigPath    = ""
+	defaultServerAddress     = "localhost:8080"
+	defaultGrpcServerAddress = ":9090"
+	defaultStoreInterval     = 300
+	defaultFileStoragePath   = "metrics.json"
+	defaultRestore           = false
+	defaultDatabaseDSN       = ""
+	defaultKey               = ""
+	defaultCryptoKey         = ""
+	defaultTrustedSubnet     = ""
 )
 
 type Config struct {
-	jsonConfigPath  string `env:"CONFIG"`
-	ServerAddress   string `env:"ADDRESS" json:"address"`
-	StoreInterval   int    `env:"STORE_INTERVAL" json:"store_interval"`
-	FileStoragePath string `env:"FILE_STORAGE_PATH" json:"store_file"`
-	Restore         bool   `env:"RESTORE" json:"restore"`
-	DatabaseDSN     string `env:"DATABASE_DSN" json:"database_dsn"`
-	Key             string `env:"KEY" json:"key"`
-	CryptoKey       string `env:"CRYPTO_KEY" json:"crypto_key"`
-	TrustedSubnet   string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
+	jsonConfigPath    string `env:"CONFIG"`
+	ServerAddress     string `env:"ADDRESS" json:"address"`
+	GrpcServerAddress string `env:"GRPC_ADDRESS" json:"grpc_address"`
+	StoreInterval     int    `env:"STORE_INTERVAL" json:"store_interval"`
+	FileStoragePath   string `env:"FILE_STORAGE_PATH" json:"store_file"`
+	Restore           bool   `env:"RESTORE" json:"restore"`
+	DatabaseDSN       string `env:"DATABASE_DSN" json:"database_dsn"`
+	Key               string `env:"KEY" json:"key"`
+	CryptoKey         string `env:"CRYPTO_KEY" json:"crypto_key"`
+	TrustedSubnet     string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
 }
 
 func NewConfig() *Config {
 	result := &Config{
-		jsonConfigPath:  defaultJSONConfigPath,
-		ServerAddress:   defaultServerAddress,
-		StoreInterval:   defaultStoreInterval,
-		FileStoragePath: defaultFileStoragePath,
-		Restore:         defaultRestore,
-		DatabaseDSN:     defaultDatabaseDSN,
-		Key:             defaultKey,
-		CryptoKey:       defaultCryptoKey,
-		TrustedSubnet:   defaultTrustedSubnet,
+		jsonConfigPath:    defaultJSONConfigPath,
+		ServerAddress:     defaultServerAddress,
+		GrpcServerAddress: defaultGrpcServerAddress,
+		StoreInterval:     defaultStoreInterval,
+		FileStoragePath:   defaultFileStoragePath,
+		Restore:           defaultRestore,
+		DatabaseDSN:       defaultDatabaseDSN,
+		Key:               defaultKey,
+		CryptoKey:         defaultCryptoKey,
+		TrustedSubnet:     defaultTrustedSubnet,
 	}
 	flag.StringVar(&result.jsonConfigPath, "c", result.jsonConfigPath,
 		"path to .json config file; env: CONFIG")
 	flag.StringVar(&result.ServerAddress, "a", result.ServerAddress,
 		"server address; env: ADDRESS")
+	flag.StringVar(&result.GrpcServerAddress, "g", result.GrpcServerAddress,
+		"grpc server address; env: GRPC_ADDRESS")
 	flag.IntVar(&result.StoreInterval, "i", result.StoreInterval,
 		"metrics store inverval in seconds; env: STORE_INTERVAL")
 	flag.StringVar(&result.FileStoragePath, "f", result.FileStoragePath,
@@ -85,6 +90,7 @@ func (c Config) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.String("JSONConfigPath", c.jsonConfigPath),
 		slog.String("ServerAddress", c.ServerAddress),
+		slog.String("GrpcServerAddress", c.GrpcServerAddress),
 		slog.Int("StoreInterval", c.StoreInterval),
 		slog.String("FileStoragePath", c.FileStoragePath),
 		slog.Bool("Restore", c.Restore),

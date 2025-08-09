@@ -81,7 +81,7 @@ func convertEntityMetric(metric entities.Metric) (*proto.Metric, error) {
 		result.Metric = &proto.Metric_Counter{
 			Counter: &proto.Counter{
 				Name:  string(metric.Name),
-				Value: int64(metric.Value),
+				Value: int64(metric.Delta),
 			},
 		}
 	default:

@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,10 +18,13 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/middleware"
 	rsamiddleware "github.com/PiskarevSA/go-advanced/internal/middleware/rsa"
 	"github.com/PiskarevSA/go-advanced/internal/middleware/subnet"
+	"github.com/PiskarevSA/go-advanced/internal/proto"
+	"github.com/PiskarevSA/go-advanced/internal/service"
 	"github.com/PiskarevSA/go-advanced/internal/storage/filestorage"
 	"github.com/PiskarevSA/go-advanced/internal/storage/memstorage"
 	"github.com/PiskarevSA/go-advanced/internal/storage/pgstorage"
 	"github.com/PiskarevSA/go-advanced/internal/usecases"
+	"google.golang.org/grpc"
 )
 
 type usecaseStorage interface {
@@ -58,14 +63,27 @@ func (s *Server) Run() bool {
 
 	usecase := s.createMetricsUsecase(storage)
 
-	server := s.createServer(usecase)
+	server, err := s.createServer(usecase)
+	if err != nil {
+		slog.Error("[main] create server", "error", err.Error())
+		return false
+	}
 
 	success := true // will be false if listener could not be started
 	s.startWorkers(ctx, cancel, &wg, server, &success)
 
+	grpcListen, grpcServer, err := s.createGrpcServer(usecase)
+	if err != nil {
+		slog.Error("[main] create grpc server", "error", err.Error())
+		return false
+	}
+
+	grpcSuccess := true // will be false if listener could not be started
+	s.startGrpcWorkers(ctx, cancel, &wg, grpcListen, grpcServer, &grpcSuccess)
+
 	// Wait for all goroutines to finish
 	wg.Wait()
-	return success
+	return success && grpcSuccess
 }
 
 func (s *Server) setupSignalHandler() (context.Context, context.CancelFunc) {
@@ -99,6 +117,13 @@ func (s *Server) startWorkers(ctx context.Context, cancel context.CancelFunc,
 	s.startWatchdog(ctx, wg, server)
 }
 
+func (s *Server) startGrpcWorkers(ctx context.Context, cancel context.CancelFunc,
+	wg *sync.WaitGroup, listen net.Listener, server *grpc.Server, success *bool,
+) {
+	s.startGrpcListener(cancel, wg, listen, server, success)
+	s.startGrpcWatchdog(ctx, wg, server)
+}
+
 func (s *Server) createStorage(ctx context.Context, wg *sync.WaitGroup,
 ) usecaseStorage {
 	var result usecaseStorage
@@ -129,15 +154,14 @@ func (s *Server) createMetricsUsecase(storage usecaseStorage,
 	return usecases.NewMetricsUsecase(storage)
 }
 
-func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
+func (s *Server) createServer(usecase *usecases.MetricsUsecase) (*http.Server, error) {
 	middlewares := []func(http.Handler) http.Handler{
 		middleware.Summary,
 	}
 	if len(s.config.TrustedSubnet) > 0 {
 		verifyHeader, err := subnet.VerifyHeader(s.config.TrustedSubnet, handlers.WillModifyMetrics)
 		if err != nil {
-			slog.Error("[main] create server", "error", err.Error())
-			return nil
+			return nil, fmt.Errorf("verify subnet header: %w", err)
 		}
 		if verifyHeader != nil {
 			middlewares = append(middlewares, verifyHeader)
@@ -146,8 +170,7 @@ func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
 	if len(s.config.CryptoKey) > 0 {
 		decoder, err := rsamiddleware.Decoder(s.config.CryptoKey)
 		if err != nil {
-			slog.Error("[main] create server", "error", err.Error())
-			return nil
+			return nil, fmt.Errorf("rsamiddleware decoder: %w", err)
 		}
 		if decoder != nil {
 			middlewares = append(middlewares, decoder)
@@ -163,7 +186,20 @@ func (s *Server) createServer(usecase *usecases.MetricsUsecase) *http.Server {
 		Addr: s.config.ServerAddress,
 	}
 	server.Handler = r
-	return &server
+	return &server, nil
+}
+
+func (s *Server) createGrpcServer(usecase *usecases.MetricsUsecase,
+) (net.Listener, *grpc.Server, error) {
+	listen, err := net.Listen("tcp", s.config.GrpcServerAddress)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listen: %w", err)
+	}
+	server := grpc.NewServer()
+	proto.RegisterMetricsServiceServer(
+		server, service.NewMetricsService(usecase))
+
+	return listen, server, nil
 }
 
 func (s *Server) startListener(cancel context.CancelFunc, wg *sync.WaitGroup,
@@ -201,5 +237,37 @@ func (s *Server) startWatchdog(ctx context.Context, wg *sync.WaitGroup, server *
 		} else {
 			slog.Info("[watchdog] server.Shutdown() completed")
 		}
+	}()
+}
+
+func (s *Server) startGrpcListener(cancel context.CancelFunc, wg *sync.WaitGroup,
+	listen net.Listener, server *grpc.Server, success *bool,
+) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		slog.Info("[grpc listener] start")
+
+		if err := server.Serve(listen); !errors.Is(err, grpc.ErrServerStopped) {
+			slog.Error("[grpc listener] server.ListenAndServe() error", "error", err.Error())
+			*success = false
+
+			// Cancel the context to notify all goroutines to stop
+			cancel()
+		}
+		slog.Info("[grpc listener] Stopped serving new connections.")
+	}()
+}
+
+func (s *Server) startGrpcWatchdog(ctx context.Context, wg *sync.WaitGroup, server *grpc.Server) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		slog.Info("[grpc watchdog] start")
+		<-ctx.Done()
+
+		slog.Info("[grpc watchdog] server.GracefulStop() initiated", "reason", ctx.Err())
+		server.GracefulStop()
+		slog.Info("[grpc watchdog] server.GracefulStop() completed")
 	}()
 }
