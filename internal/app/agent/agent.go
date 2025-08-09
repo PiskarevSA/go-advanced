@@ -77,7 +77,9 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) error {
 
 	// report metrics to server periodically
 	reporterPool := workers.NewReporterPool(
-		&wg, config.RateLimit, metricsChan, config.ServerAddress, config.Key, config.CryptoKey)
+		&wg, config.RateLimit, metricsChan,
+		config.ServerAddress, config.GrpcServerAddress, config.WorkMode,
+		config.Key, config.CryptoKey)
 	if err := reporterPool.StartReporters(ctx); err != nil {
 		return fmt.Errorf("start reporters: %w", err)
 	}
