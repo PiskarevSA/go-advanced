@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -69,7 +70,9 @@ func (s *Server) Run() bool {
 		return false
 	}
 
-	success := true // will be false if listener could not be started
+	var success atomic.Bool // will be false if any rest or grpc listener could not be started
+	success.Store(true)
+
 	s.startWorkers(ctx, cancel, &wg, server, &success)
 
 	grpcListen, grpcServer, err := s.createGrpcServer(usecase)
@@ -77,13 +80,11 @@ func (s *Server) Run() bool {
 		slog.Error("[main] create grpc server", "error", err.Error())
 		return false
 	}
-
-	grpcSuccess := true // will be false if listener could not be started
-	s.startGrpcWorkers(ctx, cancel, &wg, grpcListen, grpcServer, &grpcSuccess)
+	s.startGrpcWorkers(ctx, cancel, &wg, grpcListen, grpcServer, &success)
 
 	// Wait for all goroutines to finish
 	wg.Wait()
-	return success && grpcSuccess
+	return success.Load()
 }
 
 func (s *Server) setupSignalHandler() (context.Context, context.CancelFunc) {
@@ -111,14 +112,14 @@ func (s *Server) setupSignalHandler() (context.Context, context.CancelFunc) {
 }
 
 func (s *Server) startWorkers(ctx context.Context, cancel context.CancelFunc,
-	wg *sync.WaitGroup, server *http.Server, success *bool,
+	wg *sync.WaitGroup, server *http.Server, success *atomic.Bool,
 ) {
 	s.startListener(cancel, wg, server, success)
 	s.startWatchdog(ctx, wg, server)
 }
 
 func (s *Server) startGrpcWorkers(ctx context.Context, cancel context.CancelFunc,
-	wg *sync.WaitGroup, listen net.Listener, server *grpc.Server, success *bool,
+	wg *sync.WaitGroup, listen net.Listener, server *grpc.Server, success *atomic.Bool,
 ) {
 	s.startGrpcListener(cancel, wg, listen, server, success)
 	s.startGrpcWatchdog(ctx, wg, server)
@@ -203,7 +204,7 @@ func (s *Server) createGrpcServer(usecase *usecases.MetricsUsecase,
 }
 
 func (s *Server) startListener(cancel context.CancelFunc, wg *sync.WaitGroup,
-	server *http.Server, success *bool,
+	server *http.Server, success *atomic.Bool,
 ) {
 	wg.Add(1)
 	go func() {
@@ -212,7 +213,7 @@ func (s *Server) startListener(cancel context.CancelFunc, wg *sync.WaitGroup,
 
 		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("[listener] server.ListenAndServe() error", "error", err.Error())
-			*success = false
+			success.Store(false)
 
 			// Cancel the context to notify all goroutines to stop
 			cancel()
@@ -241,7 +242,7 @@ func (s *Server) startWatchdog(ctx context.Context, wg *sync.WaitGroup, server *
 }
 
 func (s *Server) startGrpcListener(cancel context.CancelFunc, wg *sync.WaitGroup,
-	listen net.Listener, server *grpc.Server, success *bool,
+	listen net.Listener, server *grpc.Server, success *atomic.Bool,
 ) {
 	wg.Add(1)
 	go func() {
@@ -250,7 +251,7 @@ func (s *Server) startGrpcListener(cancel context.CancelFunc, wg *sync.WaitGroup
 
 		if err := server.Serve(listen); !errors.Is(err, grpc.ErrServerStopped) {
 			slog.Error("[grpc listener] server.ListenAndServe() error", "error", err.Error())
-			*success = false
+			success.Store(false)
 
 			// Cancel the context to notify all goroutines to stop
 			cancel()

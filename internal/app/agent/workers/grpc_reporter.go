@@ -36,13 +36,12 @@ func (r *GrpcReporter) Start(ctx context.Context) {
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		conn, err := grpc.NewClient(
-			r.grpcServerAddress,
-			grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+		conn, err := r.createConnection()
 		if err != nil {
 			slog.Info("[grpc reporter] stopping",
 				"index", r.index,
-				"reason", "metrics channel closed")
+				"reason", fmt.Errorf("create connection: %w", err))
 			return
 		}
 		defer conn.Close()
@@ -56,14 +55,14 @@ func (r *GrpcReporter) Start(ctx context.Context) {
 					"index", r.index,
 					"reason", ctx.Err())
 				return
-			case metric, ok := <-r.metricsChan:
+			case metrics, ok := <-r.metricsChan:
 				if !ok {
 					slog.Info("[grpc reporter] stopping",
 						"index", r.index,
 						"reason", "metrics channel closed")
 					return
 				}
-				if err := r.report(ctx, metric.Gauge, metric.Counter); err != nil {
+				if err := r.report(ctx, metrics.Gauge, metrics.Counter); err != nil {
 					slog.Error("[grpc reporter] report failed",
 						"index", r.index,
 						"error", err)
@@ -74,6 +73,12 @@ func (r *GrpcReporter) Start(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (r *GrpcReporter) createConnection() (*grpc.ClientConn, error) {
+	return grpc.NewClient(
+		r.grpcServerAddress,
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
 }
 
 func (r *GrpcReporter) report(ctx context.Context,

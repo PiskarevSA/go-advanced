@@ -2,41 +2,36 @@ package workers
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"net/http"
 	"sync"
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent/metrics"
-	rsamiddleware "github.com/PiskarevSA/go-advanced/internal/middleware/rsa"
-	"github.com/PiskarevSA/go-advanced/internal/middleware/subnet"
 )
 
+type Reporter interface {
+	Start(ctx context.Context)
+}
+
+type ReporterCreator interface {
+	Do(wg *sync.WaitGroup, metricsChan <-chan metrics.Metrics, reporterIndex int) Reporter
+}
+
 type ReporterPool struct {
-	wg                *sync.WaitGroup
-	rateLimit         int
-	metricsChan       <-chan metrics.Metrics
-	serverAddress     string
-	grpcServerAddress string
-	workMode          string
-	key               string
-	cryptoKey         string
+	wg              *sync.WaitGroup
+	rateLimit       int
+	metricsChan     <-chan metrics.Metrics
+	reporterCreator ReporterCreator
 }
 
 func NewReporterPool(
 	wg *sync.WaitGroup, rateLimit int, metricsChan <-chan metrics.Metrics,
-	serverAddress string, grpcServerAddress string, workMode string,
-	key string, cryptoKey string,
+	reporterCreator ReporterCreator,
 ) *ReporterPool {
 	return &ReporterPool{
-		wg:                wg,
-		rateLimit:         rateLimit,
-		metricsChan:       metricsChan,
-		serverAddress:     serverAddress,
-		grpcServerAddress: grpcServerAddress,
-		workMode:          workMode,
-		key:               key,
-		cryptoKey:         cryptoKey,
+		wg:              wg,
+		rateLimit:       rateLimit,
+		metricsChan:     metricsChan,
+		reporterCreator: reporterCreator,
 	}
 }
 
@@ -49,38 +44,10 @@ func (p *ReporterPool) StartReporters(ctx context.Context) error {
 		return nil
 	}
 
-	setRealIP, err := subnet.SetHeader()
-	if err != nil {
-		return fmt.Errorf("subnet middleware: %w", err)
-	}
-
-	var encoder func(*http.Request) error
-	if len(p.cryptoKey) > 0 {
-		var err error
-		encoder, err = rsamiddleware.Encoder(p.cryptoKey)
-		if err != nil {
-			return fmt.Errorf("rsaencoder: %w", err)
-		}
-	}
-
-	var reporter interface {
-		Start(ctx context.Context)
-	}
-
 	for reporterIndex := range p.rateLimit {
 		slog.Info("[reporter pool] start reporter",
 			"reporterIndex", reporterIndex)
-		switch p.workMode {
-		case "rest":
-			reporter = NewReporter(p.wg, reporterIndex,
-				p.metricsChan, p.serverAddress,
-				p.key, setRealIP, encoder)
-		case "grpc":
-			reporter = NewGrpcReporter(p.wg, reporterIndex,
-				p.metricsChan, p.grpcServerAddress)
-		default:
-			return fmt.Errorf("wrong work mode: %s (rest or grpc expected)", p.workMode)
-		}
+		reporter := p.reporterCreator.Do(p.wg, p.metricsChan, reporterIndex)
 		reporter.Start(ctx)
 	}
 	return nil

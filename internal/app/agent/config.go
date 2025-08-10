@@ -17,7 +17,7 @@ const (
 	defaultReportIntervalSec = 10
 	defaultServerAddress     = "localhost:8080"
 	defaultGrpcServerAddress = "127.0.0.1:9090"
-	defaultWorkMode          = "rest"
+	defaultUseGrpcMode       = false
 	defaultKey               = ""
 	defaultRateLimit         = 1
 	defaultCryptoKey         = ""
@@ -29,7 +29,7 @@ type Config struct {
 	ReportIntervalSec int    `env:"REPORT_INTERVAL" json:"report_interval"`
 	ServerAddress     string `env:"ADDRESS" json:"address"`
 	GrpcServerAddress string `env:"GRPC_ADDRESS" json:"grpc_address"`
-	WorkMode          string `env:"WORK_MODE" json:"work_mode"`
+	UseGrpcMode       bool   `env:"USE_GRPC_MODE" json:"use_grpc_mode"`
 	Key               string `env:"KEY" json:"key"`
 	RateLimit         int    `env:"RATE_LIMIT" json:"rate_limit"`
 	CryptoKey         string `env:"CRYPTO_KEY" json:"crypto_key"`
@@ -42,7 +42,7 @@ func NewConfig() *Config {
 		ReportIntervalSec: defaultReportIntervalSec,
 		ServerAddress:     defaultServerAddress,
 		GrpcServerAddress: defaultGrpcServerAddress,
-		WorkMode:          defaultWorkMode,
+		UseGrpcMode:       defaultUseGrpcMode,
 		Key:               defaultKey,
 		RateLimit:         defaultRateLimit,
 		CryptoKey:         defaultCryptoKey,
@@ -57,8 +57,8 @@ func NewConfig() *Config {
 		"server address; env: ADDRESS")
 	flag.StringVar(&result.GrpcServerAddress, "g", result.GrpcServerAddress,
 		"grpc server address; env: GRPC_ADDRESS")
-	flag.StringVar(&result.WorkMode, "m", result.WorkMode,
-		"working mode: rest or grpc; env: MODE")
+	flag.BoolVar(&result.UseGrpcMode, "m", result.UseGrpcMode,
+		"use grpc mode instead of rest; env: USE_GRPC_MODE")
 	flag.StringVar(&result.Key, "k", result.Key,
 		"the key for signing the request body (the signature is in the HashSHA256 header); env: KEY")
 	flag.IntVar(&result.RateLimit, "l", result.RateLimit,
@@ -79,7 +79,7 @@ func (c Config) LogValue() slog.Value {
 		slog.Int("ReportIntervalSec", c.ReportIntervalSec),
 		slog.String("ServerAddress", c.ServerAddress),
 		slog.String("GrpcServerAddress", c.GrpcServerAddress),
-		slog.String("WorkMode", c.WorkMode),
+		slog.Bool("UseGrpcMode", c.UseGrpcMode),
 		slog.String("Key", c.Key),
 		slog.Int("RateLimit", c.RateLimit),
 		slog.String("CryptoKey", c.CryptoKey),
