@@ -20,21 +20,23 @@ import (
 	"github.com/PiskarevSA/go-advanced/internal/models"
 )
 
-type Reporter struct {
+type RestReporter struct {
 	wg            *sync.WaitGroup
 	index         int
 	metricsChan   <-chan metrics.Metrics
 	serverAddress string
 	key           string
 	httpClient    *http.Client
+	setRealIP     func(*http.Request)
 	encoder       func(*http.Request) error
 }
 
 func NewReporter(
 	wg *sync.WaitGroup, index int, metricsChan <-chan metrics.Metrics,
-	serverAddress string, key string, encoder func(*http.Request) error,
-) *Reporter {
-	return &Reporter{
+	serverAddress string, key string, setRealIP func(*http.Request),
+	encoder func(*http.Request) error,
+) *RestReporter {
+	return &RestReporter{
 		wg:            wg,
 		index:         index,
 		metricsChan:   metricsChan,
@@ -44,11 +46,12 @@ func NewReporter(
 			Timeout:   15 * time.Second,
 			Transport: httpretry.NewRetryableTransport(),
 		},
-		encoder: encoder,
+		setRealIP: setRealIP,
+		encoder:   encoder,
 	}
 }
 
-func (r *Reporter) Start(ctx context.Context) {
+func (r *RestReporter) Start(ctx context.Context) {
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
@@ -79,7 +82,7 @@ func (r *Reporter) Start(ctx context.Context) {
 	}()
 }
 
-func (r *Reporter) report(gauge map[string]metrics.Gauge,
+func (r *RestReporter) report(gauge map[string]metrics.Gauge,
 	counter map[string]metrics.Counter,
 ) error {
 	url := "http://" + r.serverAddress + "/updates/"
@@ -116,7 +119,7 @@ func (r *Reporter) report(gauge map[string]metrics.Gauge,
 	return nil
 }
 
-func (r *Reporter) reportToURL(url string, body []byte, key string) error {
+func (r *RestReporter) reportToURL(url string, body []byte, key string) error {
 	compressedBodyBuffer := bytes.NewBuffer(nil)
 	gzipWriter := gzip.NewWriter(compressedBodyBuffer)
 	// write compressed body to buffer
@@ -146,6 +149,8 @@ func (r *Reporter) reportToURL(url string, body []byte, key string) error {
 	if len(hexSum) > 0 {
 		req.Header.Set("HashSHA256", hexSum)
 	}
+
+	r.setRealIP(req)
 
 	if r.encoder != nil {
 		err = r.encoder(req)

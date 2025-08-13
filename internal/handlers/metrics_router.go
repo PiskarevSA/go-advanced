@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/PiskarevSA/go-advanced/internal/entities"
@@ -35,6 +36,15 @@ const (
 			<td>%s</td>
 		</tr>`
 )
+
+func WillModifyMetrics(req *http.Request) bool {
+	if req.Method == http.MethodPost {
+		url := req.URL.Path
+		return strings.HasPrefix(url, "/update/") ||
+			strings.HasPrefix(url, "/updates/")
+	}
+	return false
+}
 
 const timeout = 15 * time.Second
 

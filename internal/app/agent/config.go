@@ -16,6 +16,8 @@ const (
 	defaultPollIntervalSec   = 2
 	defaultReportIntervalSec = 10
 	defaultServerAddress     = "localhost:8080"
+	defaultGrpcServerAddress = "127.0.0.1:9090"
+	defaultUseGrpcMode       = false
 	defaultKey               = ""
 	defaultRateLimit         = 1
 	defaultCryptoKey         = ""
@@ -26,6 +28,8 @@ type Config struct {
 	PollIntervalSec   int    `env:"POLL_INTERVAL" json:"poll_interval"`
 	ReportIntervalSec int    `env:"REPORT_INTERVAL" json:"report_interval"`
 	ServerAddress     string `env:"ADDRESS" json:"address"`
+	GrpcServerAddress string `env:"GRPC_ADDRESS" json:"grpc_address"`
+	UseGrpcMode       bool   `env:"USE_GRPC_MODE" json:"use_grpc_mode"`
 	Key               string `env:"KEY" json:"key"`
 	RateLimit         int    `env:"RATE_LIMIT" json:"rate_limit"`
 	CryptoKey         string `env:"CRYPTO_KEY" json:"crypto_key"`
@@ -37,6 +41,8 @@ func NewConfig() *Config {
 		PollIntervalSec:   defaultPollIntervalSec,
 		ReportIntervalSec: defaultReportIntervalSec,
 		ServerAddress:     defaultServerAddress,
+		GrpcServerAddress: defaultGrpcServerAddress,
+		UseGrpcMode:       defaultUseGrpcMode,
 		Key:               defaultKey,
 		RateLimit:         defaultRateLimit,
 		CryptoKey:         defaultCryptoKey,
@@ -49,6 +55,10 @@ func NewConfig() *Config {
 		"interval between sending metrics to server, seconds; env: REPORT_INTERVAL")
 	flag.StringVar(&result.ServerAddress, "a", result.ServerAddress,
 		"server address; env: ADDRESS")
+	flag.StringVar(&result.GrpcServerAddress, "g", result.GrpcServerAddress,
+		"grpc server address; env: GRPC_ADDRESS")
+	flag.BoolVar(&result.UseGrpcMode, "m", result.UseGrpcMode,
+		"use grpc mode instead of rest; env: USE_GRPC_MODE")
 	flag.StringVar(&result.Key, "k", result.Key,
 		"the key for signing the request body (the signature is in the HashSHA256 header); env: KEY")
 	flag.IntVar(&result.RateLimit, "l", result.RateLimit,
@@ -68,6 +78,8 @@ func (c Config) LogValue() slog.Value {
 		slog.Int("PollIntervalSec", c.PollIntervalSec),
 		slog.Int("ReportIntervalSec", c.ReportIntervalSec),
 		slog.String("ServerAddress", c.ServerAddress),
+		slog.String("GrpcServerAddress", c.GrpcServerAddress),
+		slog.Bool("UseGrpcMode", c.UseGrpcMode),
 		slog.String("Key", c.Key),
 		slog.Int("RateLimit", c.RateLimit),
 		slog.String("CryptoKey", c.CryptoKey),

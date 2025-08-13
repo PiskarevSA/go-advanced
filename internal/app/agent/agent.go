@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/PiskarevSA/go-advanced/internal/app/agent/metrics"
 	"github.com/PiskarevSA/go-advanced/internal/app/agent/workers"
+	rsamiddleware "github.com/PiskarevSA/go-advanced/internal/middleware/rsa"
+	"github.com/PiskarevSA/go-advanced/internal/middleware/subnet"
 )
 
 type Agent struct{}
@@ -75,9 +78,15 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) error {
 		gopsutilPollerMetrics,
 	})
 
+	// hide reporter mode (rest or grpc) from reporter pool
+	reporterCreator, err := a.makeReporterCreator(config)
+	if err != nil {
+		return fmt.Errorf("make reporter creator: %w", err)
+	}
+
 	// report metrics to server periodically
 	reporterPool := workers.NewReporterPool(
-		&wg, config.RateLimit, metricsChan, config.ServerAddress, config.Key, config.CryptoKey)
+		&wg, config.RateLimit, metricsChan, reporterCreator)
 	if err := reporterPool.StartReporters(ctx); err != nil {
 		return fmt.Errorf("start reporters: %w", err)
 	}
@@ -85,4 +94,60 @@ func (a *Agent) startWorkers(ctx context.Context, config *Config) error {
 	// Wait for all goroutines to finish
 	wg.Wait()
 	return nil
+}
+
+func (a *Agent) makeReporterCreator(config *Config) (workers.ReporterCreator, error) {
+	if config.UseGrpcMode {
+		creator := RestReporterCreator{
+			config: config,
+		}
+		return &creator, nil
+
+	} else {
+		setRealIP, err := subnet.SetHeader()
+		if err != nil {
+			return nil, fmt.Errorf("subnet middleware: %w", err)
+		}
+
+		var encoder func(*http.Request) error
+		if len(config.CryptoKey) > 0 {
+			var err error
+			encoder, err = rsamiddleware.Encoder(config.CryptoKey)
+			if err != nil {
+				return nil, fmt.Errorf("rsaencoder: %w", err)
+			}
+		}
+
+		creator := RestReporterCreator{
+			config:    config,
+			setRealIP: setRealIP,
+			encoder:   encoder,
+		}
+		return &creator, nil
+	}
+}
+
+type RestReporterCreator struct {
+	config    *Config
+	setRealIP func(*http.Request)
+	encoder   func(*http.Request) error
+}
+
+func (c *RestReporterCreator) Do(
+	wg *sync.WaitGroup, metricsChan <-chan metrics.Metrics, reporterIndex int,
+) workers.Reporter {
+	return workers.NewReporter(wg, reporterIndex,
+		metricsChan, c.config.ServerAddress,
+		c.config.Key, c.setRealIP, c.encoder)
+}
+
+type GrpcReporterCreator struct {
+	config *Config
+}
+
+func (c *GrpcReporterCreator) Do(
+	wg *sync.WaitGroup, metricsChan <-chan metrics.Metrics, reporterIndex int,
+) workers.Reporter {
+	return workers.NewGrpcReporter(wg, reporterIndex,
+		metricsChan, c.config.GrpcServerAddress)
 }
